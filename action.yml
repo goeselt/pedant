@@ -20,4 +20,4 @@ inputs:
 runs:
   using: docker
   # Image tag is updated automatically by the release workflow on every push.
-  image: docker://ghcr.io/goeselt/pedant:0.0.0
+  image: docker://ghcr.io/goeselt/pedant:1.0.0
