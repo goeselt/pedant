@@ -1,0 +1,12 @@
+root = true
+
+# Custom editorconfig: stricter indent_size (4 instead of the bundled 2).
+# The bundled config (.editorconfig at container root) sets indent_size = 2
+# for [*]; this workspace overrides it so 2-space-indented files now fail.
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 4
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true

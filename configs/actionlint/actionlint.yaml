@@ -1,0 +1,12 @@
+---
+# Default actionlint configuration.
+# Baked into the container image at /etc/pedant/actionlint/actionlint.yaml.
+# Projects can override by placing their own .github/actionlint.yaml in the repository.
+
+self-hosted-runner:
+  labels:
+    - large
+    - medium
+    - small
+    - xlarge
+    - xsmall

@@ -1,0 +1,9 @@
+---
+# Custom hadolint config: requires a 'maintainer' LABEL via strict-labels.
+# The bundled default has no strict-labels, so the same Dockerfile would pass it.
+# label-schema declares the maintainer label as type text; strict-labels turns
+# its absence into DL3049 ("Label `maintainer` is missing.").
+failure-threshold: info
+strict-labels: true
+label-schema:
+  maintainer: text

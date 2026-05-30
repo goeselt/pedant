@@ -1,0 +1,50 @@
+---
+ignores:
+  - .cache/**
+  - .git/**
+  - build/**
+  - coverage/**
+  - dist/**
+  - node_modules/**
+  - out/**
+  - output/**
+  - vendor/**
+config:
+  default: true
+  MD004:
+    style: dash
+  MD013:
+    code_blocks: false
+    line_length: 120
+    tables: false
+  MD022:
+    lines_above: 1
+    lines_below: 1
+  MD024:
+    siblings_only: true
+  MD025:
+    front_matter_title: ''
+  MD026:
+    punctuation: '.,;:!?'
+  MD029:
+    style: ordered
+  MD033:
+    allowed_elements:
+      - br
+      - details
+      - kbd
+      - sub
+      - summary
+      - sup
+  MD035:
+    style: '---'
+  MD041:
+    front_matter_title: ''
+  MD046:
+    style: fenced
+  MD048:
+    style: backtick
+  MD049:
+    style: asterisk
+  MD050:
+    style: asterisk

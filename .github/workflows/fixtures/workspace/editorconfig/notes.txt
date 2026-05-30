@@ -1,0 +1,8 @@
+Custom editorconfig scenario.
+
+  This line is indented with 2 spaces.
+
+The bundled .editorconfig allows 2-space indent; the workspace .editorconfig
+requires 4. Expected finding with custom config: editorconfig "Wrong amount of
+left-padding spaces(want multiple of 4)".
+No findings with bundled config.

@@ -1,0 +1,8 @@
+---
+# Custom yamllint config: requires a document-start marker (---).
+# The bundled default extends yamllint's default which does NOT require it.
+extends: default
+
+rules:
+  document-start:
+    present: true

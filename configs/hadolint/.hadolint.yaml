@@ -1,0 +1,6 @@
+---
+# Default hadolint configuration.
+# Baked into the container image at /etc/pedant/hadolint/.hadolint.yaml.
+# Projects can override by placing their own .hadolint.yaml in the repository.
+
+failure-threshold: style

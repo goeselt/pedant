@@ -1,0 +1,27 @@
+# Build outputs
+.cache/
+.next/
+.nuxt/
+build/
+coverage/
+dist/
+out/
+output/
+public/
+target/
+tmp/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Version control
+.git/
+
+# Generated files
+*.lock
+go.sum
+*_gen.go
+*.pb.go
+*.min.js
+*.min.css

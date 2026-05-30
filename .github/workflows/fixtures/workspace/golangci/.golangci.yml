@@ -1,0 +1,10 @@
+---
+# Custom golangci-lint config: enables godot (comments must end with a period).
+# The bundled default enables errcheck/govet/etc. but not godot.
+# main.go is clean under the bundled config but fails godot.
+version: '2'
+
+linters:
+  default: none
+  enable:
+    - godot

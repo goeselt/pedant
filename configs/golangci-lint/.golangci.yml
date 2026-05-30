@@ -1,0 +1,41 @@
+---
+version: '2'
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - nolintlint
+    - prealloc
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-naming
+        - name: error-return
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: range
+        - name: receiver-naming
+        - name: var-declaration
+        - name: var-naming
+
+issues:
+  exclude-dirs:
+    - vendor
+    - _gen
