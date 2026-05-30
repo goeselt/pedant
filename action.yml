@@ -1,0 +1,23 @@
+---
+name: Pedant
+description: Lint and format code in a Git repository using pedant.
+author: goeselt
+
+inputs:
+  fix:
+    description: >
+      Apply auto-fixes to files in the workspace. Set to 'true' to enable. Fixable tools (prettier, shfmt, ...) rewrite files in-place; the caller is responsible for committing any changes.
+    default: 'false'
+  paths:
+    description: >
+      Restrict the scan to these workspace-relative paths, space-separated (e.g. 'src/ docs/'). Omit to scan the entire repository.
+    default: ''
+  ignore:
+    description: >
+      Exclude these workspace-relative paths from the scan, space-separated (e.g. 'vendor/ dist/'). Omit to exclude nothing.
+    default: ''
+
+runs:
+  using: docker
+  # Image tag is updated automatically by the release workflow on every push.
+  image: docker://ghcr.io/goeselt/pedant:0.0.0

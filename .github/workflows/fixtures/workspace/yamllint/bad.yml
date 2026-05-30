@@ -1,0 +1,9 @@
+# Custom yamllint scenario: missing document-start marker (---).
+# The bundled config does not require it; the custom config does.
+#
+# Expected findings with custom config:
+#   yamllint document-start  -- missing '---' at top of file
+# No findings with bundled config.
+name: example
+enabled: true
+debug: false

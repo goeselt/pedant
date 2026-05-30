@@ -1,0 +1,20 @@
+---
+extends: default
+
+rules:
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  empty-lines:
+    max: 1
+  indentation:
+    indent-sequences: consistent
+  line-length: disable
+  new-line-at-end-of-file: enable
+  trailing-spaces: enable
+  truthy:
+    allowed-values: ['true', 'false']
+    check-keys: false

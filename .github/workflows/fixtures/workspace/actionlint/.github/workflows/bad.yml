@@ -1,0 +1,17 @@
+---
+# Custom actionlint scenario: workflow references a configuration variable.
+# The bundled default has no config-variables restriction; the custom config
+# (.github/actionlint.yaml) forbids all vars.* references.
+#
+# Expected finding with custom config:
+#   actionlint expression  -- "no configuration variable is allowed since the variables list is empty"
+# No findings with bundled config.
+name: bad
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FLAG: ${{ vars.MY_FLAG }}
+    steps:
+      - run: echo "$FLAG"

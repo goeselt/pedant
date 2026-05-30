@@ -1,0 +1,5 @@
+---
+# Custom actionlint config: forbid all configuration variables.
+# The bundled default does not set config-variables, so any vars.* expression
+# is accepted. With this config any vars.* reference is flagged.
+config-variables: []

@@ -1,0 +1,8 @@
+root = true
+
+# Custom editorconfig: 2-space indent for shell, overriding the bundled 4.
+# shfmt reads .editorconfig directly (no shfmt-specific config exists), so
+# a 4-space-indented script that passes bundled now fails this workspace.
+[*.sh]
+indent_size = 2
+indent_style = space

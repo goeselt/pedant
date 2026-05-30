@@ -1,0 +1,9 @@
+---
+# Custom markdownlint config: stricter line length (80 instead of the bundled 120).
+# A line between 81 and 119 chars passes the bundled config but fails this one.
+config:
+  default: false
+  MD013:
+    line_length: 80
+    code_blocks: false
+    tables: false

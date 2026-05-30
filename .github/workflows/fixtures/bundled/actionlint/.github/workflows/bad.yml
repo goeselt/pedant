@@ -1,0 +1,12 @@
+---
+# Intentionally malformed GitHub Actions workflow for pedant e2e testing.
+#
+# Expected finding:
+#   actionlint expression  -- script injection via untrusted issue title
+name: bad
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.issue.title }}"

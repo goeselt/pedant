@@ -1,0 +1,23 @@
+# Default ruff config.
+# Baked into the container image at /etc/pedant/ruff/ruff.toml.
+# Projects can override by placing their own ruff.toml or pyproject.toml in the repository.
+
+line-length = 120
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "RUF", # ruff-specific rules
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
