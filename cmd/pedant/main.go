@@ -100,7 +100,7 @@ func main() {
 
 	if len(files) == 0 {
 		out := aggregate(absWorkspace, files, nil, true)
-		print(out, pretty)
+		emit(out, pretty)
 		os.Exit(0)
 	}
 
@@ -109,6 +109,7 @@ func main() {
 	ctx := context.Background()
 	var results []runner.Result
 	anyFail := false
+	anyError := false
 
 	for _, a := range assignments {
 		def, ok := toolByName(a.Tool)
@@ -116,8 +117,11 @@ func main() {
 			continue
 		}
 		result := runner.Run(ctx, def, absWorkspace, fix, a.Files, log)
-		if result.Status == "fail" || result.Status == "error" {
+		switch result.Status {
+		case "fail":
 			anyFail = true
+		case "error":
+			anyError = true
 		}
 		if result.Status != "pass" && result.Status != "skip" {
 			results = append(results, result)
@@ -126,9 +130,15 @@ func main() {
 
 	logf("[%s] done -- %d finding(s)\n", appName, totalFindings(results))
 
-	out := aggregate(absWorkspace, files, results, !anyFail)
-	print(out, pretty)
+	out := aggregate(absWorkspace, files, results, !anyFail && !anyError)
+	emit(out, pretty)
 
+	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
+	// A tool error takes precedence over findings: it means a clean lint
+	// result could not be produced, which is more severe than ordinary findings.
+	if anyError {
+		os.Exit(2)
+	}
 	if anyFail {
 		os.Exit(1)
 	}
@@ -191,7 +201,7 @@ func aggregate(workspace string, files []string, results []runner.Result, pass b
 	}
 }
 
-func print(out output, pretty bool) {
+func emit(out output, pretty bool) {
 	var b []byte
 	var err error
 	if pretty {
