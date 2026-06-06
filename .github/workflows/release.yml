@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      packages: write
       id-token: write
       attestations: write
     steps:
@@ -65,7 +66,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ steps.app.outputs.token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve Image Metadata
         id: meta
@@ -90,7 +91,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          github-token: ${{ steps.app.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest Build Provenance
         if: steps.bumpkin.outputs.release-needed == 'true'
