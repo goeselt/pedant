@@ -90,6 +90,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          github-token: ${{ steps.app.outputs.token }}
 
       - name: Attest Build Provenance
         if: steps.bumpkin.outputs.release-needed == 'true'
