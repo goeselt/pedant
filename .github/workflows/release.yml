@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      contents: write
       packages: write
       id-token: write
       attestations: write
@@ -101,28 +102,22 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Import Signing Key
-        if: steps.bumpkin.outputs.release-needed == 'true'
-        env:
-          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
-        run: echo "$SIGNING_KEY" | base64 -d | gpg --import --batch
-
       - name: Pin action.yml
         if: steps.bumpkin.outputs.release-needed == 'true'
         env:
           VERSION: ${{ steps.bumpkin.outputs.next-version }}
-          GIT_USER_NAME: ${{ vars.RELEASE_SIGNING_USER }}
-          GIT_USER_EMAIL: ${{ vars.RELEASE_SIGNING_EMAIL }}
         run: |
-          git config user.name "$GIT_USER_NAME"
-          git config user.email "$GIT_USER_EMAIL"
-          git config commit.gpgsign true
           sed -i "s|image: docker://ghcr.io/goeselt/pedant:.*|image: docker://ghcr.io/goeselt/pedant:${VERSION}|" action.yml
-          git add action.yml
-          if ! git diff --staged --quiet; then
-            git commit -m "Pin action.yml to v${VERSION} [skip ci]"
-            git push
-          fi
+
+      - name: Commit Pin
+        if: steps.bumpkin.outputs.release-needed == 'true'
+        uses: goeselt/scribe@2dde3d76f0a8c6de2974c223b6dd562756fa872e # v1.1.0
+        with:
+          files: action.yml
+          message: 'chore(pin): action.yml to v${{ steps.bumpkin.outputs.next-version }}'
+          git-user-name: ${{ vars.RELEASE_SIGNING_USER }}
+          git-user-email: ${{ vars.RELEASE_SIGNING_EMAIL }}
+          signing-key: ${{ secrets.RELEASE_SIGNING_KEY }}
 
       - name: Ship
         if: steps.bumpkin.outputs.release-needed == 'true'
