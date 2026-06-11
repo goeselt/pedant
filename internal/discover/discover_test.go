@@ -68,6 +68,75 @@ func TestFilesWithPaths(t *testing.T) {
 	}
 }
 
+func TestFilesWithFilePath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	write(t, dir, "root.go", "package main\n")
+	write(t, dir, "sub/nested.go", "package sub\n")
+	write(t, dir, "other/file.go", "package other\n")
+	gitRun(t, dir, "git", "add", ".")
+
+	got, err := Files(dir, []string{"sub/nested.go"}, nil)
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if len(got) != 1 || got[0] != "sub/nested.go" {
+		t.Errorf("Files(dir, [sub/nested.go]) = %v, want [sub/nested.go]", got)
+	}
+}
+
+func TestFilesWithGitignoredPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	write(t, dir, ".gitignore", "ignored/\n")
+	write(t, dir, "keep.go", "package main\n")
+	write(t, dir, "ignored/nested.go", "package ignored\n")
+	gitRun(t, dir, "git", "add", ".gitignore", "keep.go")
+
+	got, err := Files(dir, []string{"ignored"}, nil)
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("Files(dir, [ignored]) = %v, want []", got)
+	}
+}
+
+func TestFilesWithGitignoredFilePath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	write(t, dir, ".gitignore", "ignored.md\n")
+	write(t, dir, "keep.md", "# Keep\n")
+	write(t, dir, "ignored.md", "# Ignored\n")
+	gitRun(t, dir, "git", "add", ".gitignore", "keep.md")
+
+	got, err := Files(dir, []string{"ignored.md"}, nil)
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("Files(dir, [ignored.md]) = %v, want []", got)
+	}
+}
+
 func TestFilesEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -105,6 +174,38 @@ func TestFilesWithIgnore(t *testing.T) {
 
 	if len(got) != 1 || got[0] != "root.go" {
 		t.Errorf("Files(dir, nil, [vendor/]) = %v, want [root.go]", got)
+	}
+}
+
+func TestFilesWithIgnoredFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	write(t, dir, "root.go", "package main\n")
+	write(t, dir, "vendor/lib.go", "package lib\n")
+	write(t, dir, "vendor/other.go", "package lib\n")
+	gitRun(t, dir, "git", "add", ".")
+
+	got, err := Files(dir, nil, []string{"vendor/lib.go"})
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	want := []string{"root.go", "vendor/other.go"}
+	slices.Sort(got)
+	slices.Sort(want)
+
+	if len(got) != len(want) {
+		t.Fatalf("Files(dir, nil, [vendor/lib.go]) = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("Files()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 

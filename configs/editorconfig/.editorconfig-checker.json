@@ -1,3 +1,18 @@
 {
-  "Exclude": ["\\.cache/", "\\.git/", "build/", "coverage/", "dist/", "node_modules/", "out/", "output/", "vendor/"]
+  "Exclude": [
+    "\\.cache/",
+    "\\.git/",
+    "\\.next/",
+    "\\.nuxt/",
+    "build/",
+    "coverage/",
+    "dist/",
+    "node_modules/",
+    "out/",
+    "output/",
+    "public/",
+    "target/",
+    "tmp/",
+    "vendor/"
+  ]
 }

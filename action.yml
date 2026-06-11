@@ -10,11 +10,11 @@ inputs:
     default: 'false'
   paths:
     description: >
-      Restrict the scan to these workspace-relative paths, space-separated (e.g. 'src/ docs/'). Omit to scan the entire repository.
+      Restrict the scan to these workspace-relative paths or files, space-separated (e.g. 'src/ README.md'). Omit to scan the entire repository.
     default: ''
   ignore:
     description: >
-      Exclude these workspace-relative paths from the scan, space-separated (e.g. 'vendor/ dist/'). Omit to exclude nothing.
+      Exclude these workspace-relative paths or files from the scan, space-separated (e.g. 'vendor/ generated/file.go'). Omit to exclude nothing.
     default: ''
 
 runs:

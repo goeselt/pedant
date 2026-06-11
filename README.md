@@ -72,13 +72,21 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 
 ## Options
 
-| Flag                  | Description                                   |
-| --------------------- | --------------------------------------------- |
-| `--nofix`, `--no-fix` | Check only, do not modify files               |
-| `--path <path>`       | Restrict scan to this path (repeatable)       |
-| `--ignore <path>`     | Exclude this path from scan (repeatable)      |
-| `--pretty`            | Pretty-print JSON output                      |
-| `--quiet`, `-q`       | Suppress progress output; JSON only on stdout |
+| Flag                  | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `--nofix`, `--no-fix` | Check only, do not modify files                  |
+| `--path <path>`       | Restrict scan to this path or file (repeatable)  |
+| `--ignore <path>`     | Exclude this path or file from scan (repeatable) |
+| `--pretty`            | Pretty-print JSON output                         |
+| `--quiet`, `-q`       | Suppress progress output; JSON only on stdout    |
+
+Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
+`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs a
+warning and omits those files from tool runs.
+
+File discovery uses `git ls-files --exclude-standard`, so `.gitignore`, `.git/info/exclude`, and global Git ignore rules
+are respected for untracked files, including when `--path` is used. Files already tracked by Git remain discoverable, which
+matches Git's normal ignore behavior.
 
 ## Output
 
@@ -136,16 +144,16 @@ Check and autofix in one pass:
 docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest
 ```
 
-Restrict the scan to specific paths:
+Restrict the scan to specific paths or files:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --path src/ --path docs/
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --path src/ --path README.md
 ```
 
-Exclude paths from the scan:
+Exclude paths or files from the scan:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --ignore vendor/ --ignore dist/
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --ignore vendor/ --ignore generated/file.go
 ```
 
 ## Contributing

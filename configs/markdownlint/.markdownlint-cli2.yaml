@@ -1,6 +1,8 @@
 ---
 ignores:
   - .cache/**
+  - .next/**
+  - .nuxt/**
   - .git/**
   - build/**
   - coverage/**
@@ -8,6 +10,9 @@ ignores:
   - node_modules/**
   - out/**
   - output/**
+  - public/**
+  - target/**
+  - tmp/**
   - vendor/**
 config:
   default: true

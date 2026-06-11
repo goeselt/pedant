@@ -14,6 +14,7 @@ import (
 
 	"github.com/goeselt/pedant/internal/classify"
 	"github.com/goeselt/pedant/internal/discover"
+	"github.com/goeselt/pedant/internal/pathignore"
 	"github.com/goeselt/pedant/internal/runner"
 )
 
@@ -41,8 +42,8 @@ func main() {
 	fs.BoolVar(&pretty, "pretty", false, "Pretty-print JSON output")
 	fs.BoolVar(&quiet, "quiet", false, "Suppress progress output (JSON only on stdout)")
 	fs.BoolVar(&quiet, "q", false, "Alias for --quiet")
-	fs.Var(&pathList, "path", "Restrict scan to this path (repeatable)")
-	fs.Var(&ignList, "ignore", "Exclude this path from scan (repeatable)")
+	fs.Var(&pathList, "path", "Restrict scan to this path or file (repeatable)")
+	fs.Var(&ignList, "ignore", "Exclude this path or file from scan (repeatable)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
@@ -97,6 +98,14 @@ func main() {
 		fatal("discover: %v", err)
 	}
 	logf("[%s] %d file(s) found\n", appName, len(files))
+	for _, warning := range pathignore.Warnings(pathList, files) {
+		logf("[%s] warning -- %s\n", appName, warning)
+	}
+	filteredFiles := pathignore.Filter(files)
+	if ignored := len(files) - len(filteredFiles); ignored > 0 {
+		logf("[%s] %d file(s) ignored by default path ignores\n", appName, ignored)
+	}
+	files = filteredFiles
 
 	if len(files) == 0 {
 		out := aggregate(absWorkspace, files, nil, true)
