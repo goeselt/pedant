@@ -69,7 +69,7 @@ func TestBundledConfigsContainDefaultDirs(t *testing.T) {
 		{
 			name:   "editorconfig-checker",
 			path:   filepath.Join(root, "configs/editorconfig/.editorconfig-checker.json"),
-			format: func(dir string) string { return escapeJSONRegexDir(dir) },
+			format: escapeJSONRegexDir,
 		},
 	}
 

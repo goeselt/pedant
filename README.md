@@ -81,12 +81,12 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `--quiet`, `-q`       | Suppress progress output; JSON only on stdout    |
 
 Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
-`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs a
-warning and omits those files from tool runs.
+`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
+a warning and omits those files from tool runs.
 
 File discovery uses `git ls-files --exclude-standard`, so `.gitignore`, `.git/info/exclude`, and global Git ignore rules
-are respected for untracked files, including when `--path` is used. Files already tracked by Git remain discoverable, which
-matches Git's normal ignore behavior.
+are respected for untracked files, including when `--path` is used. Files already tracked by Git remain discoverable,
+which matches Git's normal ignore behavior.
 
 ## Output
 
