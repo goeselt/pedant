@@ -1,0 +1,9 @@
+/* Intentionally malformed CSS for pedant e2e testing.
+ *
+ * Expected findings:
+ *   stylelint color-no-invalid-hex -- #gggggg is not a valid hex color
+ */
+
+a {
+  color: #gggggg;
+}

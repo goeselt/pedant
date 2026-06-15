@@ -22,6 +22,7 @@ var Registry = []ToolDef{
 	textlintTool,
 	markdownlintTool,
 	eslintTool,
+	stylelintTool,
 	hadolintTool,
 	shellcheckTool,
 	yamllintTool,
@@ -726,6 +727,81 @@ func parseRuffFormat(stdout, stderr string, _ int, _ string) ([]Finding, error) 
 		}
 		file := strings.TrimPrefix(trimmed, "Would reformat: ")
 		findings = append(findings, Finding{File: file, Message: "needs formatting"})
+	}
+	return findings, nil
+}
+
+// -- stylelint ---------------------------------------------------------------------------------------
+
+var stylelintConfigCandidates = []string{
+	".stylelintrc",
+	".stylelintrc.json",
+	".stylelintrc.yaml",
+	".stylelintrc.yml",
+	".stylelintrc.js",
+	".stylelintrc.mjs",
+	".stylelintrc.cjs",
+	"stylelint.config.js",
+	"stylelint.config.mjs",
+	"stylelint.config.cjs",
+}
+
+var stylelintTool = ToolDef{
+	Name:   "stylelint",
+	CanFix: true,
+	Globs:  []string{"*.css"},
+	Args: func(fix bool, workspace string, files []string) []string {
+		args := []string{}
+		if workspaceConfig(workspace, stylelintConfigCandidates...) == "" {
+			if cfg := bundledConfig("/etc/pedant/stylelint/.stylelintrc.json"); cfg != "" {
+				args = append(args, "--config", cfg)
+			}
+		}
+		if fix {
+			args = append(args, "--fix")
+		} else {
+			args = append(args, "--formatter", "json")
+		}
+		return append(args, files...)
+	},
+	Parse: parseStylelint,
+}
+
+type stylelintFileResult struct {
+	Source   string `json:"source"`
+	Warnings []struct {
+		Line     int    `json:"line"`
+		Column   int    `json:"column"`
+		Rule     string `json:"rule"`
+		Severity string `json:"severity"`
+		Text     string `json:"text"`
+	} `json:"warnings"`
+}
+
+func parseStylelint(stdout, _ string, _ int, workspace string) ([]Finding, error) {
+	if strings.TrimSpace(stdout) == "" {
+		return nil, nil
+	}
+	var results []stylelintFileResult
+	if err := json.Unmarshal([]byte(stdout), &results); err != nil {
+		return nil, fmt.Errorf("stylelint JSON: %w", err)
+	}
+	var findings []Finding
+	for _, r := range results {
+		for _, w := range r.Warnings {
+			msg := w.Text
+			if suffix := " (" + w.Rule + ")"; strings.HasSuffix(msg, suffix) {
+				msg = msg[:len(msg)-len(suffix)]
+			}
+			findings = append(findings, Finding{
+				File:    relativize(workspace, r.Source),
+				Line:    w.Line,
+				Col:     w.Column,
+				Level:   w.Severity,
+				Rule:    w.Rule,
+				Message: msg,
+			})
+		}
 	}
 	return findings, nil
 }

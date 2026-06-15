@@ -41,6 +41,10 @@ PEDANT_IMAGE=pedant .github/workflows/fixtures/run.sh --all
 Self-check (pedant linting its own repository):
 
 ```bash
+docker run --rm -v "$(pwd):/work" pedant --nofix --ignore .github/workflows/fixtures
+
+# or
+
 docker run --rm \
   -v "$(pwd):/work" \
   -e INPUT_FIX=false \

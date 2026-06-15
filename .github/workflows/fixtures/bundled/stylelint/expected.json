@@ -1,0 +1,5 @@
+{
+  "status": "fail",
+  "tools_errored": [],
+  "tools_failing": ["stylelint"]
+}

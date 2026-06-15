@@ -50,6 +50,10 @@ ARG TYPESCRIPT_VERSION=6.0.3
 ARG MARKDOWNLINT_VERSION=0.22.1
 # renovate: datasource=npm depName=textlint
 ARG TEXTLINT_VERSION=15.7.1
+# renovate: datasource=npm depName=stylelint
+ARG STYLELINT_VERSION=16.14.0
+# renovate: datasource=npm depName=stylelint-config-standard
+ARG STYLELINT_CONFIG_STANDARD_VERSION=36.0.1
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache nodejs npm \
@@ -66,13 +70,16 @@ RUN apk add --no-cache nodejs npm \
         "textlint@${TEXTLINT_VERSION}" \
         "textlint-filter-rule-comments@1.3.0" \
         "textlint-rule-terminology@5.2.16" \
+        "stylelint@${STYLELINT_VERSION}" \
+        "stylelint-config-standard@${STYLELINT_CONFIG_STANDARD_VERSION}" \
     && npm cache clean --force \
     && apk del npm \
     && rm -rf /tmp/* /root/.npm \
     && prettier --version \
     && eslint --version \
     && markdownlint-cli2 --version \
-    && textlint --version
+    && textlint --version \
+    && stylelint --version
 
 # -- Python linter/formatter --
 
@@ -204,7 +211,8 @@ RUN apk add --no-cache bash && chmod 755 /usr/local/bin/entrypoint.sh
 # - .editorconfig at / so ec finds it via upward traversal for repos without their own
 # - node_modules symlink so the bundled eslint config can resolve its npm imports
 RUN ln -s /etc/pedant/editorconfig/.editorconfig /.editorconfig \
-    && ln -s /usr/local/lib/node_modules /etc/pedant/eslint/node_modules
+    && ln -s /usr/local/lib/node_modules /etc/pedant/eslint/node_modules \
+    && ln -s /usr/local/lib/node_modules /etc/pedant/stylelint/node_modules
 
 # Intentionally running as root: pedant operates on a bind-mounted workspace
 # whose files are owned by the host UID. A non-root user would need UID

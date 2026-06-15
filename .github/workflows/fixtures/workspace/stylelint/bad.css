@@ -1,0 +1,9 @@
+/* Custom Stylelint scenario: named colors forbidden by workspace config.
+ *
+ * Expected findings:
+ *   stylelint color-named -- named color 'red' is forbidden
+ */
+
+a {
+  color: red;
+}
