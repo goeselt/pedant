@@ -309,6 +309,84 @@ func TestParseStylelint(t *testing.T) {
 	}
 }
 
+func TestParseTextlintJSON(t *testing.T) {
+	t.Parallel()
+
+	stdout := `[{"filePath":"/work/README.md","messages":[{"ruleId":"terminology","message":"Incorrect usage of Github, use GitHub instead.","line":2,"column":10}]}]`
+	findings, err := parseTextlintJSON(stdout, "", 1, "/work")
+	if err != nil {
+		t.Fatalf("parseTextlintJSON: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(findings))
+	}
+	if findings[0].File != "README.md" {
+		t.Errorf("File = %q, want README.md", findings[0].File)
+	}
+	if findings[0].Line != 2 {
+		t.Errorf("Line = %d, want 2", findings[0].Line)
+	}
+	if findings[0].Rule != "terminology" {
+		t.Errorf("Rule = %q, want terminology", findings[0].Rule)
+	}
+}
+
+func TestParseEslint(t *testing.T) {
+	t.Parallel()
+
+	stdout := `[{"filePath":"/work/src/app.js","messages":[{"ruleId":"no-var","severity":2,"message":"Unexpected var, use let or const instead.","line":3,"column":1},{"ruleId":"prefer-const","severity":1,"message":"Use const instead.","line":7,"column":5}]}]`
+	findings, err := parseEslint(stdout, "", 1, "/work")
+	if err != nil {
+		t.Fatalf("parseEslint: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("got %d findings, want 2: %v", len(findings), findings)
+	}
+	if findings[0].File != "src/app.js" {
+		t.Errorf("File = %q, want src/app.js", findings[0].File)
+	}
+	if findings[0].Rule != "no-var" {
+		t.Errorf("Rule = %q, want no-var", findings[0].Rule)
+	}
+	if findings[0].Level != "error" {
+		t.Errorf("Level = %q, want error", findings[0].Level)
+	}
+	if findings[1].Level != "warning" {
+		t.Errorf("Level = %q, want warning", findings[1].Level)
+	}
+}
+
+func TestParsePlainify(t *testing.T) {
+	t.Parallel()
+
+	stdout := `{"findings":[{"file":"docs/NOTES.md","line":4,"col":8,"message":"non-ASCII character U+2019"}]}`
+	findings, err := parsePlainify(stdout, "", 0, "")
+	if err != nil {
+		t.Fatalf("parsePlainify: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(findings))
+	}
+	if findings[0].File != "docs/NOTES.md" {
+		t.Errorf("File = %q, want docs/NOTES.md", findings[0].File)
+	}
+	if findings[0].Line != 4 {
+		t.Errorf("Line = %d, want 4", findings[0].Line)
+	}
+}
+
+func TestParsePlainifyRuntimeError(t *testing.T) {
+	t.Parallel()
+
+	_, err := parsePlainify("", "open /work: permission denied", 2, "")
+	if err == nil {
+		t.Fatal("parsePlainify with exitCode 2: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("error %q does not contain expected message", err.Error())
+	}
+}
+
 func TestParseEmptyOutputPass(t *testing.T) {
 	t.Parallel()
 
@@ -316,6 +394,7 @@ func TestParseEmptyOutputPass(t *testing.T) {
 		parsePrettier, parseShfmt, parseShellcheck, parseYamllint,
 		parseHadolint, parseMarkdownlint, parseEditorconfig, parseActionlint,
 		parseGolangciLint, parseRuff, parseRuffFormat, parseStylelint,
+		parseTextlintJSON, parseEslint, parsePlainify,
 	} {
 		findings, err := parse("", "", 0, "")
 		if err != nil {

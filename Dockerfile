@@ -54,15 +54,19 @@ ARG TEXTLINT_VERSION=15.7.1
 ARG STYLELINT_VERSION=16.14.0
 # renovate: datasource=npm depName=stylelint-config-standard
 ARG STYLELINT_CONFIG_STANDARD_VERSION=36.0.1
+# renovate: datasource=npm depName=jiti
+ARG JITI_VERSION=2.7.0
+# renovate: datasource=npm depName=@eslint/js
+ARG ESLINT_JS_VERSION=10.0.1
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache nodejs npm \
     && npm install -g \
         "prettier@${PRETTIER_VERSION}" \
         "eslint@${ESLINT_VERSION}" \
-        "jiti@2" \
+        "jiti@${JITI_VERSION}" \
         "eslint-plugin-unicorn@${UNICORN_VERSION}" \
-        "@eslint/js@10" \
+        "@eslint/js@${ESLINT_JS_VERSION}" \
         "typescript-eslint@${TYPESCRIPT_ESLINT_VERSION}" \
         "typescript@${TYPESCRIPT_VERSION}" \
         "globals@17.6.0" \

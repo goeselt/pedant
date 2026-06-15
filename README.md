@@ -54,21 +54,21 @@ The bundled `eslint` config lints JavaScript and TypeScript out of the box, incl
 `tsconfig.json` is required; cross-file and type-aware checks remain the TypeScript compiler's job (`tsc`). Supply your
 own `eslint.config.*` to enable type-aware rules or any other project-specific setup.
 
-| Tool            | Workspace Config File                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                          |
-| `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                |
-| `shfmt`         | -- (no config)                                                                                 |
-| `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                       |
-| `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint.yaml`, `.markdownlint.yml` |
-| `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...          |
-| `hadolint`      | `.hadolint.yaml`, `.hadolint.yml`                                                              |
-| `shellcheck`    | `.shellcheckrc`                                                                                |
-| `yamllint`      | `.yamllint.yml`, `.yamllint.yaml`, `.yamllint`                                                 |
-| `actionlint`    | `.github/actionlint.yaml`, `.github/actionlint.yml`                                            |
-| `golangci-lint` | `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`, `.golangci.json`                          |
-| `ruff`          | `ruff.toml`, `.ruff.toml`, `pyproject.toml`                                                    |
-| `plainify`      | -- (no config)                                                                                 |
+| Tool            | Workspace Config File                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                                                                            |
+| `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                                                                  |
+| `shfmt`         | -- (no config)                                                                                                                                   |
+| `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
+| `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
+| `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |
+| `hadolint`      | `.hadolint.yaml`, `.hadolint.yml`                                                                                                                |
+| `shellcheck`    | `.shellcheckrc`                                                                                                                                  |
+| `yamllint`      | `.yamllint.yml`, `.yamllint.yaml`, `.yamllint`                                                                                                   |
+| `actionlint`    | `.github/actionlint.yaml`, `.github/actionlint.yml`, `actionlint.yaml`, `actionlint.yml`                                                         |
+| `golangci-lint` | `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`, `.golangci.json`                                                                            |
+| `ruff`          | `ruff.toml`, `.ruff.toml`, `pyproject.toml`                                                                                                      |
+| `plainify`      | -- (no config)                                                                                                                                   |
 
 ## Options
 
@@ -116,15 +116,17 @@ Progress is written to **stderr**. JSON is written to **stdout**:
 }
 ```
 
-Only tools with findings appear in the `tools` array. Tools with no matching files or a clean result are omitted.
+The top-level `status` is `"pass"` (all tools clean), `"fail"` (one or more tools reported findings), or `"error"` (one
+or more tools could not run to completion). Only tools with findings or errors appear in the `tools` array. Tools with
+no matching files or a clean result are omitted.
 
 ### Exit Codes
 
-| Code | Meaning                                            |
-| ---- | -------------------------------------------------- |
-| `0`  | All tools passed                                   |
-| `1`  | One or more tools reported findings                |
-| `2`  | Runtime error (bad arguments, Git not found, etc.) |
+| Code | Meaning                                                                                             |
+| ---- | --------------------------------------------------------------------------------------------------- |
+| `0`  | All tools passed                                                                                    |
+| `1`  | One or more tools reported findings                                                                 |
+| `2`  | Runtime error (bad arguments, Git not found, etc.) or one or more tools could not run to completion |
 
 ## Local Usage
 

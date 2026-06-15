@@ -1,7 +1,11 @@
 ---
-name: Pedant
+name: Pedant - Lint and Format
 description: Lint and format code in a Git repository using pedant.
 author: goeselt
+
+branding:
+  icon: check-circle
+  color: purple
 
 inputs:
   fix:

@@ -108,7 +108,7 @@ func main() {
 	files = filteredFiles
 
 	if len(files) == 0 {
-		out := aggregate(absWorkspace, files, nil, true)
+		out := aggregate(absWorkspace, files, nil, "pass")
 		emit(out, pretty)
 		os.Exit(0)
 	}
@@ -139,7 +139,13 @@ func main() {
 
 	logf("[%s] done -- %d finding(s)\n", appName, totalFindings(results))
 
-	out := aggregate(absWorkspace, files, results, !anyFail && !anyError)
+	outStatus := "pass"
+	if anyError {
+		outStatus = "error"
+	} else if anyFail {
+		outStatus = "fail"
+	}
+	out := aggregate(absWorkspace, files, results, outStatus)
 	emit(out, pretty)
 
 	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
@@ -193,11 +199,7 @@ type output struct {
 	Tools           []runner.Result `json:"tools"`
 }
 
-func aggregate(workspace string, files []string, results []runner.Result, pass bool) output {
-	status := "pass"
-	if !pass {
-		status = "fail"
-	}
+func aggregate(workspace string, files []string, results []runner.Result, status string) output {
 	if results == nil {
 		results = []runner.Result{}
 	}
