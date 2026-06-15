@@ -778,12 +778,17 @@ type stylelintFileResult struct {
 	} `json:"warnings"`
 }
 
-func parseStylelint(stdout, _ string, _ int, workspace string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseStylelint(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
+	// stylelint v16+ writes --formatter json to stderr instead of stdout.
+	output := stdout
+	if strings.TrimSpace(output) == "" {
+		output = stderr
+	}
+	if strings.TrimSpace(output) == "" {
 		return nil, nil
 	}
 	var results []stylelintFileResult
-	if err := json.Unmarshal([]byte(stdout), &results); err != nil {
+	if err := json.Unmarshal([]byte(output), &results); err != nil {
 		return nil, fmt.Errorf("stylelint JSON: %w", err)
 	}
 	var findings []Finding

@@ -268,29 +268,44 @@ func TestParseRuff(t *testing.T) {
 func TestParseStylelint(t *testing.T) {
 	t.Parallel()
 
-	stdout := `[{"source":"/work/src/style.css","deprecations":[],"invalidOptionWarnings":[],"parseErrors":[],"warnings":[{"line":4,"column":3,"endLine":4,"endColumn":12,"rule":"color-no-invalid-hex","severity":"error","text":"Unexpected invalid hex color \"#gggggg\" (color-no-invalid-hex)"}]}]`
-	findings, err := parseStylelint(stdout, "", 1, "/work")
-	if err != nil {
-		t.Fatalf("parseStylelint: %v", err)
+	const jsonOutput = `[{"source":"/work/src/style.css","deprecations":[],"invalidOptionWarnings":[],"parseErrors":[],"warnings":[{"line":4,"column":3,"endLine":4,"endColumn":12,"rule":"color-no-invalid-hex","severity":"error","text":"Unexpected invalid hex color \"#gggggg\" (color-no-invalid-hex)"}]}]`
+
+	tests := []struct {
+		name   string
+		stdout string
+		stderr string
+	}{
+		{"stdout (pre-v16)", jsonOutput, ""},
+		{"stderr (v16+)", "", jsonOutput},
 	}
-	if len(findings) != 1 {
-		t.Fatalf("got %d findings, want 1", len(findings))
-	}
-	f := findings[0]
-	if f.File != "src/style.css" {
-		t.Errorf("File = %q, want src/style.css", f.File)
-	}
-	if f.Line != 4 {
-		t.Errorf("Line = %d, want 4", f.Line)
-	}
-	if f.Rule != "color-no-invalid-hex" {
-		t.Errorf("Rule = %q, want color-no-invalid-hex", f.Rule)
-	}
-	if f.Level != "error" {
-		t.Errorf("Level = %q, want error", f.Level)
-	}
-	if strings.Contains(f.Message, "(color-no-invalid-hex)") {
-		t.Errorf("Message should have rule suffix stripped, got %q", f.Message)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			findings, err := parseStylelint(tc.stdout, tc.stderr, 2, "/work")
+			if err != nil {
+				t.Fatalf("parseStylelint: %v", err)
+			}
+			if len(findings) != 1 {
+				t.Fatalf("got %d findings, want 1", len(findings))
+			}
+			f := findings[0]
+			if f.File != "src/style.css" {
+				t.Errorf("File = %q, want src/style.css", f.File)
+			}
+			if f.Line != 4 {
+				t.Errorf("Line = %d, want 4", f.Line)
+			}
+			if f.Rule != "color-no-invalid-hex" {
+				t.Errorf("Rule = %q, want color-no-invalid-hex", f.Rule)
+			}
+			if f.Level != "error" {
+				t.Errorf("Level = %q, want error", f.Level)
+			}
+			if strings.Contains(f.Message, "(color-no-invalid-hex)") {
+				t.Errorf("Message should have rule suffix stripped, got %q", f.Message)
+			}
+		})
 	}
 }
 
