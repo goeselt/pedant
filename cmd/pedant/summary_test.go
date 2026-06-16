@@ -86,19 +86,26 @@ func TestValidateSummaryOptions(t *testing.T) {
 		format            string
 		file              string
 		githubStepSummary bool
+		setStepSummaryEnv bool
 		wantErr           bool
 	}{
 		{name: "disabled"},
 		{name: "explicit markdown without destination", format: "markdown"},
 		{name: "explicit markdown with file", format: "markdown", file: "summary.md"},
-		{name: "explicit markdown with github", format: "markdown", githubStepSummary: true},
+		{name: "explicit markdown with github", format: "markdown", githubStepSummary: true, setStepSummaryEnv: true},
 		{name: "file implies markdown", file: "summary.md"},
-		{name: "github implies markdown", githubStepSummary: true},
+		{name: "github implies markdown", githubStepSummary: true, setStepSummaryEnv: true},
+		{name: "github without env var", githubStepSummary: true, wantErr: true},
 		{name: "unsupported format", format: "html", wantErr: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setStepSummaryEnv {
+				t.Setenv("GITHUB_STEP_SUMMARY", filepath.Join(t.TempDir(), "step-summary.md"))
+			} else {
+				t.Setenv("GITHUB_STEP_SUMMARY", "")
+			}
 			err := validateSummaryOptions(tc.format, tc.file, tc.githubStepSummary)
 			if tc.wantErr && err == nil {
 				t.Fatal("expected error")

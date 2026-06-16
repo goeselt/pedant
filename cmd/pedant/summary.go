@@ -11,14 +11,11 @@ import (
 const summaryMarkdown = "markdown"
 
 func validateSummaryOptions(format, file string, githubStepSummary bool) error {
-	if format == "" {
-		if file != "" || githubStepSummary {
-			return nil
-		}
-		return nil
-	}
-	if format != summaryMarkdown {
+	if format != "" && format != summaryMarkdown {
 		return fmt.Errorf("unsupported summary format %q (supported: %s)", format, summaryMarkdown)
+	}
+	if githubStepSummary && os.Getenv("GITHUB_STEP_SUMMARY") == "" {
+		return fmt.Errorf("--github-step-summary requires GITHUB_STEP_SUMMARY to be set")
 	}
 	return nil
 }
@@ -41,7 +38,7 @@ func emitOutput(out output, pretty bool, format, file string, githubStepSummary 
 		fatal("unsupported summary format %q", format)
 	}
 
-	if stdoutFormat != "" && summaryToStdout(stdoutFormat) {
+	if stdoutFormat != "" {
 		fmt.Print(report)
 	}
 
@@ -52,10 +49,8 @@ func emitOutput(out output, pretty bool, format, file string, githubStepSummary 
 	}
 
 	if githubStepSummary {
+		// validateSummaryOptions already guarantees GITHUB_STEP_SUMMARY is set.
 		path := os.Getenv("GITHUB_STEP_SUMMARY")
-		if path == "" {
-			fatal("--github-step-summary requires GITHUB_STEP_SUMMARY to be set")
-		}
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
 			fatal("open GitHub step summary: %v", err)
@@ -68,10 +63,6 @@ func emitOutput(out output, pretty bool, format, file string, githubStepSummary 
 			fatal("close GitHub step summary: %v", err)
 		}
 	}
-}
-
-func summaryToStdout(format string) bool {
-	return format == summaryMarkdown
 }
 
 func renderMarkdownSummary(out output) string {
