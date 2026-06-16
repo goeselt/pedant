@@ -1,0 +1,17 @@
+{
+  "files_discovered": 3,
+  "status": "fail",
+  "tools": [
+    {
+      "files": [
+        "Makefile"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "editorconfig",
+      "rules": [],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
+}

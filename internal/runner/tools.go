@@ -64,6 +64,17 @@ func relativize(workspace, path string) string {
 	return filepath.ToSlash(rel)
 }
 
+func jsonOutput(stdout, stderr string) string {
+	if strings.TrimSpace(stdout) != "" {
+		return stdout
+	}
+	trimmed := strings.TrimSpace(stderr)
+	if strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "{") {
+		return stderr
+	}
+	return ""
+}
+
 // -- editorconfig (ec) -------------------------------------------------------------------------------
 
 var editorconfigTool = ToolDef{
@@ -72,7 +83,7 @@ var editorconfigTool = ToolDef{
 	CanFix: false,
 	Globs:  nil,
 	Args: func(_ bool, workspace string, files []string) []string {
-		args := []string{"-no-color"}
+		args := []string{"-no-color", "-format", "gcc"}
 		if workspaceConfig(workspace, ".editorconfig-checker.json", ".ecrc") == "" {
 			if cfg := bundledConfig("/etc/pedant/editorconfig/.editorconfig-checker.json"); cfg != "" {
 				args = append(args, "-config", cfg)
@@ -90,13 +101,24 @@ var editorconfigTool = ToolDef{
 var (
 	ecFileRE    = regexp.MustCompile(`^([^:]+):$`)
 	ecFindingRE = regexp.MustCompile(`^\s+(\d+):\s+(.+)$`)
+	ecGCCRE     = regexp.MustCompile(`^(.+):(\d+):(\d+):\s+([A-Za-z]+):\s+(.+)$`)
 )
 
 func parseEditorconfig(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 	var findings []Finding
 	var currentFile string
 	for _, line := range strings.Split(stdout+stderr, "\n") {
-		if m := ecFileRE.FindStringSubmatch(line); m != nil {
+		if m := ecGCCRE.FindStringSubmatch(line); m != nil {
+			lineNum, _ := strconv.Atoi(m[2])
+			col, _ := strconv.Atoi(m[3])
+			findings = append(findings, Finding{
+				File:    m[1],
+				Line:    lineNum,
+				Col:     col,
+				Level:   strings.ToLower(m[4]),
+				Message: strings.TrimSpace(m[5]),
+			})
+		} else if m := ecFileRE.FindStringSubmatch(line); m != nil {
 			currentFile = m[1]
 		} else if m := ecFindingRE.FindStringSubmatch(line); m != nil && currentFile != "" {
 			lineNum, _ := strconv.Atoi(m[1])
@@ -218,12 +240,13 @@ type textlintFileResult struct {
 	} `json:"messages"`
 }
 
-func parseTextlintJSON(stdout, _ string, _ int, workspace string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseTextlintJSON(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var results []textlintFileResult
-	if err := json.Unmarshal([]byte(stdout), &results); err != nil {
+	if err := json.Unmarshal([]byte(output), &results); err != nil {
 		return nil, fmt.Errorf("textlint JSON: %w", err)
 	}
 	var findings []Finding
@@ -332,12 +355,13 @@ type eslintFileResult struct {
 	} `json:"messages"`
 }
 
-func parseEslint(stdout, _ string, _ int, workspace string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseEslint(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var results []eslintFileResult
-	if err := json.Unmarshal([]byte(stdout), &results); err != nil {
+	if err := json.Unmarshal([]byte(output), &results); err != nil {
 		return nil, fmt.Errorf("eslint JSON: %w", err)
 	}
 	var findings []Finding
@@ -396,11 +420,12 @@ func parseHadolint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 	if msg := strings.TrimSpace(stderr); strings.HasPrefix(msg, "Error parsing your config") {
 		return nil, fmt.Errorf("%s", msg)
 	}
-	if strings.TrimSpace(stdout) == "" {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var raw []hadolintFinding
-	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+	if err := json.Unmarshal([]byte(output), &raw); err != nil {
 		return nil, fmt.Errorf("hadolint JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(raw))
@@ -446,12 +471,13 @@ type shellcheckFinding struct {
 	Message string `json:"message"`
 }
 
-func parseShellcheck(stdout, _ string, _ int, _ string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseShellcheck(stdout, stderr string, _ int, _ string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var raw []shellcheckFinding
-	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+	if err := json.Unmarshal([]byte(output), &raw); err != nil {
 		return nil, fmt.Errorf("shellcheck JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(raw))
@@ -549,12 +575,13 @@ type actionlintFinding struct {
 	Kind     string `json:"kind"`
 }
 
-func parseActionlint(stdout, _ string, _ int, _ string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseActionlint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var raw []actionlintFinding
-	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+	if err := json.Unmarshal([]byte(output), &raw); err != nil {
 		return nil, fmt.Errorf("actionlint JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(raw))
@@ -610,14 +637,15 @@ type golangciOutput struct {
 	} `json:"Issues"`
 }
 
-func parseGolangciLint(stdout, _ string, _ int, workspace string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseGolangciLint(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	// Use Decoder instead of Unmarshal: golangci-lint appends a plain-text
 	// summary after the JSON object, which would cause Unmarshal to fail.
 	var out golangciOutput
-	if err := json.NewDecoder(strings.NewReader(stdout)).Decode(&out); err != nil {
+	if err := json.NewDecoder(strings.NewReader(output)).Decode(&out); err != nil {
 		return nil, fmt.Errorf("golangci-lint JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(out.Issues))
@@ -670,13 +698,18 @@ type plainifyOutput struct {
 
 func parsePlainify(stdout, stderr string, exitCode int, _ string) ([]Finding, error) {
 	if exitCode == 2 {
-		return nil, fmt.Errorf("%s", strings.TrimSpace(stderr))
+		msg := strings.TrimSpace(stderr)
+		if msg == "" {
+			msg = strings.TrimSpace(stdout)
+		}
+		return nil, fmt.Errorf("%s", msg)
 	}
-	if strings.TrimSpace(stdout) == "" {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var out plainifyOutput
-	if err := json.Unmarshal([]byte(stdout), &out); err != nil {
+	if err := json.Unmarshal([]byte(output), &out); err != nil {
 		return nil, fmt.Errorf("plainify JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(out.Findings))
@@ -780,11 +813,8 @@ type stylelintFileResult struct {
 
 func parseStylelint(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
 	// stylelint v16+ writes --formatter json to stderr instead of stdout.
-	output := stdout
-	if strings.TrimSpace(output) == "" {
-		output = stderr
-	}
-	if strings.TrimSpace(output) == "" {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var results []stylelintFileResult
@@ -845,12 +875,13 @@ type ruffFinding struct {
 	} `json:"location"`
 }
 
-func parseRuff(stdout, _ string, _ int, workspace string) ([]Finding, error) {
-	if strings.TrimSpace(stdout) == "" {
+func parseRuff(stdout, stderr string, _ int, workspace string) ([]Finding, error) {
+	output := jsonOutput(stdout, stderr)
+	if output == "" {
 		return nil, nil
 	}
 	var raw []ruffFinding
-	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+	if err := json.Unmarshal([]byte(output), &raw); err != nil {
 		return nil, fmt.Errorf("ruff JSON: %w", err)
 	}
 	findings := make([]Finding, 0, len(raw))

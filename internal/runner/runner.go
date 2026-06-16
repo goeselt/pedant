@@ -179,8 +179,11 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 
 	if len(findings) == 0 && exitCode != 0 {
 		// Non-zero exit with no parseable findings means the tool itself failed (e.g. missing input file, bad config).
-		// Surface stderr for diagnosis.
+		// Most tools report diagnostics on stderr, but some write them to stdout.
 		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg == "" {
+			errMsg = strings.TrimSpace(stdout.String())
+		}
 		if errMsg == "" {
 			errMsg = fmt.Sprintf("exited with code %d", exitCode)
 		}
