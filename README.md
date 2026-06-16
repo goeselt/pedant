@@ -1,8 +1,8 @@
 # pedant
 
 A Docker-based linting and formatting orchestrator for Git repositories. It runs several tools in a single container
-pass, reports findings as JSON on stdout, and can autofix what is fixable. No tool installations required -- pull the
-image and run.
+pass, reports findings as JSON on stdout by default, and can autofix what is fixable. No tool installations required --
+pull the image and run.
 
 ## Quick Start
 
@@ -18,6 +18,9 @@ With options:
     fix: 'true' # apply auto-fixes (default: false)
     paths: 'src/ docs/' # restrict scan to these paths
     ignore: 'vendor/ dist/' # exclude these paths
+    summary: 'markdown' # write a concise Markdown summary
+    summary-file: 'pedant-summary.md' # make the summary available to later steps
+    github-step-summary: 'true' # also append the summary to the GitHub step summary
 ```
 
 The action always runs all applicable tools. When `fix: 'true'`, the caller is responsible for committing any changes.
@@ -32,6 +35,7 @@ The action always runs all applicable tools. When `fix: 'true'`, the caller is r
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
 | `markdownlint`  | Markdown structure and style                                                     | :white_check_mark: |
 | `eslint`        | JavaScript / TypeScript lint                                                     | :white_check_mark: |
+| `stylelint`     | CSS lint                                                                         | :white_check_mark: |
 | `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
 | `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
 | `hadolint`      | Dockerfile best practices                                                        | :x:                |
@@ -62,6 +66,7 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
 | `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
 | `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |
+| `stylelint`     | `.stylelintrc`, `.stylelintrc.json`, `.stylelintrc.yaml`, `.stylelintrc.yml`, `stylelint.config.js`, ...                                         |
 | `hadolint`      | `.hadolint.yaml`, `.hadolint.yml`                                                                                                                |
 | `shellcheck`    | `.shellcheckrc`                                                                                                                                  |
 | `yamllint`      | `.yamllint.yml`, `.yamllint.yaml`, `.yamllint`                                                                                                   |
@@ -72,13 +77,16 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 
 ## Options
 
-| Flag                  | Description                                      |
-| --------------------- | ------------------------------------------------ |
-| `--nofix`, `--no-fix` | Check only, do not modify files                  |
-| `--path <path>`       | Restrict scan to this path or file (repeatable)  |
-| `--ignore <path>`     | Exclude this path or file from scan (repeatable) |
-| `--pretty`            | Pretty-print JSON output                         |
-| `--quiet`, `-q`       | Suppress progress output; JSON only on stdout    |
+| Flag                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `--nofix`, `--no-fix`   | Check only, do not modify files                        |
+| `--path <path>`         | Restrict scan to this path or file (repeatable)        |
+| `--ignore <path>`       | Exclude this path or file from scan (repeatable)       |
+| `--pretty`              | Pretty-print JSON output                               |
+| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout          |
+| `--summary markdown`    | Write a Markdown summary to stdout                     |
+| `--summary-file <path>` | Write the generated summary to this file               |
+| `--github-step-summary` | Append the generated summary to `$GITHUB_STEP_SUMMARY` |
 
 Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
 `public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
@@ -90,7 +98,7 @@ which matches Git's normal ignore behavior.
 
 ## Output
 
-Progress is written to **stderr**. JSON is written to **stdout**:
+Progress is written to **stderr**. By default, JSON is written to **stdout**:
 
 ```json
 {
@@ -119,6 +127,26 @@ Progress is written to **stderr**. JSON is written to **stdout**:
 The top-level `status` is `"pass"` (all tools clean), `"fail"` (one or more tools reported findings), or `"error"` (one
 or more tools could not run to completion). Only tools with findings or errors appear in the `tools` array. Tools with
 no matching files or a clean result are omitted.
+
+### Markdown Summary
+
+Use `--summary markdown`, `--summary-file <path>`, and/or `--github-step-summary` to produce a concise human-readable
+report. When any summary output is requested, pedant does not also emit the JSON result; progress and intermediate
+findings still go to stderr. The summary always includes the overall status, checked file count, finding count, and
+affected tools. Detailed sections include only tools with findings or errors, which keeps CI output focused on
+actionable information.
+
+Write a Markdown summary to stdout:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary markdown
+```
+
+Write a local Markdown summary:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary-file pedant-summary.md
+```
 
 ### Exit Codes
 

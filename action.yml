@@ -20,8 +20,27 @@ inputs:
     description: >
       Exclude these workspace-relative paths or files from the scan, space-separated (e.g. 'vendor/ generated/file.go'). Omit to exclude nothing.
     default: ''
+  summary:
+    description: >
+      Write a human-readable summary to stdout in this format. Supported value: 'markdown'. Omit to keep stdout quiet when using summary-file or github-step-summary.
+    default: ''
+  summary-file:
+    description: >
+      Write the generated summary to this workspace-relative file. When set without summary, markdown is used.
+    default: ''
+  github-step-summary:
+    description: >
+      Append the generated summary to the GitHub Actions step summary. When set without summary, markdown is used.
+    default: 'false'
 
 runs:
   using: docker
   # Image tag is updated automatically by the release workflow on every push.
   image: docker://ghcr.io/goeselt/pedant:1.1.1
+  args:
+    - '${{ inputs.fix }}'
+    - '${{ inputs.paths }}'
+    - '${{ inputs.ignore }}'
+    - '${{ inputs.summary }}'
+    - "${{ inputs['summary-file'] }}"
+    - "${{ inputs['github-step-summary'] }}"

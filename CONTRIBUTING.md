@@ -53,6 +53,33 @@ docker run --rm \
   pedant
 ```
 
+Summary smoke tests. These intentionally do not ignore `.github/workflows/fixtures`, so the repository should produce
+findings and visible summary content.
+
+Markdown summary on stdout:
+
+```bash
+docker run --rm -v "$(pwd):/work" pedant --nofix --summary markdown
+```
+
+Markdown summary file:
+
+```bash
+docker run --rm -v "$(pwd):/work" pedant --nofix --summary-file pedant-summary.md
+cat pedant-summary.md
+```
+
+GitHub step summary output:
+
+```bash
+docker run --rm \
+  -v "$(pwd):/work" \
+  -e GITHUB_STEP_SUMMARY=/work/pedant-step-summary.md \
+  pedant --nofix --github-step-summary
+
+cat pedant-step-summary.md
+```
+
 ## Submitting Changes
 
 Commit messages and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/). The release
