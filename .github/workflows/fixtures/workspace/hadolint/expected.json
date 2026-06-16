@@ -1,5 +1,19 @@
 {
+  "files_discovered": 2,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["hadolint"]
+  "tools": [
+    {
+      "files": [
+        "Dockerfile"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "hadolint",
+      "rules": [
+        "DL3049"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
 }

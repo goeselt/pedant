@@ -1,5 +1,19 @@
 {
+  "files_discovered": 2,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["stylelint"]
+  "tools": [
+    {
+      "files": [
+        "bad.css"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "stylelint",
+      "rules": [
+        "color-named"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
 }

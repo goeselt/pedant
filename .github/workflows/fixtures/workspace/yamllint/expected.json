@@ -1,5 +1,19 @@
 {
+  "files_discovered": 2,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["yamllint"]
+  "tools": [
+    {
+      "files": [
+        "bad.yml"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "yamllint",
+      "rules": [
+        "document-start"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
 }

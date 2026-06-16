@@ -1,5 +1,17 @@
 {
+  "files_discovered": 1,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["plainify"]
+  "tools": [
+    {
+      "files": [
+        "notes.md"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "plainify",
+      "rules": [],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
 }
