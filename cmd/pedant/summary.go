@@ -8,47 +8,32 @@ import (
 	"github.com/goeselt/pedant/internal/runner"
 )
 
-const summaryMarkdown = "markdown"
-
-func validateSummaryOptions(format, file string, githubStepSummary bool) error {
-	if format != "" && format != summaryMarkdown {
-		return fmt.Errorf("unsupported summary format %q (supported: %s)", format, summaryMarkdown)
-	}
-	if githubStepSummary && os.Getenv("GITHUB_STEP_SUMMARY") == "" {
-		return fmt.Errorf("--github-step-summary requires GITHUB_STEP_SUMMARY to be set")
+func validateSummaryOptions(summaryGithubStep bool) error {
+	if summaryGithubStep && os.Getenv("GITHUB_STEP_SUMMARY") == "" {
+		return fmt.Errorf("--summary-github-step requires GITHUB_STEP_SUMMARY to be set")
 	}
 	return nil
 }
 
-func emitOutput(out output, pretty bool, format, file string, githubStepSummary bool) {
-	if format == "" && file == "" && !githubStepSummary {
+func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile string, summaryGithubStep bool) {
+	if !summaryMarkdown && summaryFile == "" && !summaryGithubStep {
 		emit(out, pretty)
 		return
 	}
-	stdoutFormat := format
-	if format == "" {
-		format = summaryMarkdown
-	}
 
-	var report string
-	switch format {
-	case summaryMarkdown:
-		report = renderMarkdownSummary(out)
-	default:
-		fatal("unsupported summary format %q", format)
-	}
+	report := renderMarkdownSummary(out)
 
-	if stdoutFormat != "" {
+	if summaryMarkdown {
 		fmt.Print(report)
 	}
 
-	if file != "" {
-		if err := os.WriteFile(file, []byte(report), 0o644); err != nil {
+	if summaryFile != "" {
+		if err := os.WriteFile(summaryFile, []byte(report), 0o644); err != nil {
 			fatal("write summary file: %v", err)
 		}
 	}
 
-	if githubStepSummary {
+	if summaryGithubStep {
 		// validateSummaryOptions already guarantees GITHUB_STEP_SUMMARY is set.
 		path := os.Getenv("GITHUB_STEP_SUMMARY")
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -91,7 +76,7 @@ func renderMarkdownSummary(out output) string {
 
 		if result.Error != "" {
 			fmt.Fprintln(&b)
-			fmt.Fprintf(&b, "Error: %s\n", tableText(result.Error))
+			fmt.Fprintf(&b, "Error: %s\n", markdownHeading(result.Error))
 		}
 
 		if len(result.Findings) == 0 {

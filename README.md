@@ -18,9 +18,9 @@ With options:
     fix: 'true' # apply auto-fixes (default: false)
     paths: 'src/ docs/' # restrict scan to these paths
     ignore: 'vendor/ dist/' # exclude these paths
-    summary: 'markdown' # write a concise Markdown summary
+    summary-markdown: 'true' # write a concise Markdown summary to stdout
     summary-file: 'pedant-summary.md' # make the summary available to later steps
-    github-step-summary: 'true' # also append the summary to the GitHub step summary
+    summary-github-step: 'true' # also append the summary to the GitHub step summary
 ```
 
 The action always runs all applicable tools. When `fix: 'true'`, the caller is responsible for committing any changes.
@@ -84,9 +84,9 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `--ignore <path>`       | Exclude this path or file from scan (repeatable)       |
 | `--pretty`              | Pretty-print JSON output                               |
 | `--quiet`, `-q`         | Suppress progress output; JSON only on stdout          |
-| `--summary markdown`    | Write a Markdown summary to stdout                     |
+| `--summary-markdown`    | Write a Markdown summary to stdout                     |
 | `--summary-file <path>` | Write the generated summary to this file               |
-| `--github-step-summary` | Append the generated summary to `$GITHUB_STEP_SUMMARY` |
+| `--summary-github-step` | Append the generated summary to `$GITHUB_STEP_SUMMARY` |
 
 Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
 `public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
@@ -130,7 +130,7 @@ no matching files or a clean result are omitted.
 
 ### Markdown Summary
 
-Use `--summary markdown`, `--summary-file <path>`, and/or `--github-step-summary` to produce a concise human-readable
+Use `--summary-markdown`, `--summary-file <path>`, and/or `--summary-github-step` to produce a concise human-readable
 report. When any summary output is requested, pedant does not also emit the JSON result; progress and intermediate
 findings still go to stderr. The summary always includes the overall status, checked file count, finding count, and
 affected tools. Detailed sections include only tools with findings or errors, which keeps CI output focused on
@@ -139,7 +139,7 @@ actionable information.
 Write a Markdown summary to stdout:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary markdown
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary-markdown
 ```
 
 Write a local Markdown summary:

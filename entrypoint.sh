@@ -10,13 +10,8 @@ set -euo pipefail
 
 input() {
     local key="INPUT_$1"
-    local fallback="${2:-}"
     local value
-
     value="$(printenv "$key" 2>/dev/null || true)"
-    if [[ -z "$value" && -n "$fallback" ]]; then
-        value="$(printenv "INPUT_$fallback" 2>/dev/null || true)"
-    fi
     printf '%s' "$value"
 }
 
@@ -25,9 +20,9 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     input_fix="${1:-$(input FIX)}"
     input_paths="${2:-$(input PATHS)}"
     input_ignore="${3:-$(input IGNORE)}"
-    input_summary="${4:-$(input SUMMARY)}"
-    input_summary_file="${5:-$(input SUMMARY-FILE SUMMARY_FILE)}"
-    input_github_step_summary="${6:-$(input GITHUB-STEP-SUMMARY GITHUB_STEP_SUMMARY)}"
+    input_summary_markdown="${4:-$(input SUMMARY_MARKDOWN)}"
+    input_summary_file="${5:-$(input SUMMARY_FILE)}"
+    input_summary_github_step="${6:-$(input SUMMARY_GITHUB_STEP)}"
 
     [[ "$input_fix" == "true" ]] || args+=(--nofix)
 
@@ -41,16 +36,16 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
         for ig in "${_ignores[@]}"; do args+=(--ignore "$ig"); done
     fi
 
-    if [[ -n "$input_summary" ]]; then
-        args+=(--summary "$input_summary")
+    if [[ "$input_summary_markdown" == "true" ]]; then
+        args+=(--summary-markdown)
     fi
 
     if [[ -n "$input_summary_file" ]]; then
         args+=(--summary-file "$input_summary_file")
     fi
 
-    if [[ "$input_github_step_summary" == "true" ]]; then
-        args+=(--github-step-summary)
+    if [[ "$input_summary_github_step" == "true" ]]; then
+        args+=(--summary-github-step)
     fi
 
     exec pedant "${args[@]}"

@@ -20,17 +20,17 @@ inputs:
     description: >
       Exclude these workspace-relative paths or files from the scan, space-separated (e.g. 'vendor/ generated/file.go'). Omit to exclude nothing.
     default: ''
-  summary:
+  summary-markdown:
     description: >
-      Write a human-readable summary to stdout in this format. Supported value: 'markdown'. Omit to keep stdout quiet when using summary-file or github-step-summary.
-    default: ''
+      Write a Markdown summary to stdout. Set to 'true' to enable.
+    default: 'false'
   summary-file:
     description: >
-      Write the generated summary to this workspace-relative file. When set without summary, markdown is used.
+      Write the generated Markdown summary to this workspace-relative file.
     default: ''
-  github-step-summary:
+  summary-github-step:
     description: >
-      Append the generated summary to the GitHub Actions step summary. When set without summary, markdown is used.
+      Append the generated Markdown summary to the GitHub Actions step summary. Set to 'true' to enable.
     default: 'false'
 
 runs:
@@ -41,6 +41,6 @@ runs:
     - '${{ inputs.fix }}'
     - '${{ inputs.paths }}'
     - '${{ inputs.ignore }}'
-    - '${{ inputs.summary }}'
+    - "${{ inputs['summary-markdown'] }}"
     - "${{ inputs['summary-file'] }}"
-    - "${{ inputs['github-step-summary'] }}"
+    - "${{ inputs['summary-github-step'] }}"

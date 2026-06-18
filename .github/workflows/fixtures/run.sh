@@ -247,7 +247,7 @@ run_option_smoke_tests() {
             false \
             docs \
             "" \
-            markdown \
+            true \
             action-summary.md \
             true \
             2>/dev/null || true

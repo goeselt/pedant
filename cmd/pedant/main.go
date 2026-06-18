@@ -33,8 +33,8 @@ func main() {
 		nofix             bool
 		pretty            bool
 		quiet             bool
-		githubStepSummary bool
-		summary           string
+		summaryMarkdown   bool
+		summaryGithubStep bool
 		summaryFile       string
 		pathList          multiFlag
 		ignList           multiFlag
@@ -45,9 +45,9 @@ func main() {
 	fs.BoolVar(&pretty, "pretty", false, "Pretty-print JSON output")
 	fs.BoolVar(&quiet, "quiet", false, "Suppress progress output (JSON only on stdout)")
 	fs.BoolVar(&quiet, "q", false, "Alias for --quiet")
-	fs.StringVar(&summary, "summary", "", "Write a human-readable summary to stdout in this format (supported: markdown)")
+	fs.BoolVar(&summaryMarkdown, "summary-markdown", false, "Write a Markdown summary to stdout")
 	fs.StringVar(&summaryFile, "summary-file", "", "Write the summary to this file")
-	fs.BoolVar(&githubStepSummary, "github-step-summary", false, "Append the summary to $GITHUB_STEP_SUMMARY")
+	fs.BoolVar(&summaryGithubStep, "summary-github-step", false, "Append the summary to $GITHUB_STEP_SUMMARY")
 	fs.Var(&pathList, "path", "Restrict scan to this path or file (repeatable)")
 	fs.Var(&ignList, "ignore", "Exclude this path or file from scan (repeatable)")
 
@@ -61,7 +61,7 @@ func main() {
 			appName)
 		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr,
-			"\nProgress output goes to stderr. JSON result goes to stdout unless a summary stdout format is selected.\n"+
+			"\nProgress output goes to stderr. JSON result goes to stdout unless --summary-markdown is set.\n"+
 				"Exit codes: 0 = pass, 1 = findings, 2 = error.\n\n"+
 				"Tools (in execution order):\n")
 		for _, t := range runner.Registry {
@@ -76,7 +76,7 @@ func main() {
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(2)
 	}
-	if err := validateSummaryOptions(summary, summaryFile, githubStepSummary); err != nil {
+	if err := validateSummaryOptions(summaryGithubStep); err != nil {
 		fatal("%v", err)
 	}
 
@@ -118,7 +118,7 @@ func main() {
 
 	if len(files) == 0 {
 		out := aggregate(absWorkspace, files, nil, "pass")
-		emitOutput(out, pretty, summary, summaryFile, githubStepSummary)
+		emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 		os.Exit(0)
 	}
 
@@ -155,7 +155,7 @@ func main() {
 		outStatus = "fail"
 	}
 	out := aggregate(absWorkspace, files, results, outStatus)
-	emitOutput(out, pretty, summary, summaryFile, githubStepSummary)
+	emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 
 	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
 	// A tool error takes precedence over findings: it means a clean lint

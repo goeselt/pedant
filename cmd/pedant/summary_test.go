@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,23 +81,44 @@ func TestRenderMarkdownSummaryFindingsAndErrors(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownSummaryErrorPipeNotEscaped(t *testing.T) {
+	t.Parallel()
+
+	out := output{
+		Status:          "error",
+		Workspace:       "/work",
+		FilesDiscovered: 1,
+		TotalFindings:   0,
+		Tools: []runner.Result{
+			{
+				Tool:   "actionlint",
+				Status: "error",
+				Error:  "failed: pipe | in error",
+			},
+		},
+	}
+
+	got := renderMarkdownSummary(out)
+
+	// Error is a paragraph, not a table cell — pipes must not be escaped.
+	if !strings.Contains(got, "Error: failed: pipe | in error") {
+		t.Fatalf("error paragraph should not escape pipes:\n%s", got)
+	}
+	if strings.Contains(got, `\|`) {
+		t.Fatalf("error paragraph should not contain escaped pipes:\n%s", got)
+	}
+}
+
 func TestValidateSummaryOptions(t *testing.T) {
 	tests := []struct {
 		name              string
-		format            string
-		file              string
-		githubStepSummary bool
+		summaryGithubStep bool
 		setStepSummaryEnv bool
 		wantErr           bool
 	}{
 		{name: "disabled"},
-		{name: "explicit markdown without destination", format: "markdown"},
-		{name: "explicit markdown with file", format: "markdown", file: "summary.md"},
-		{name: "explicit markdown with github", format: "markdown", githubStepSummary: true, setStepSummaryEnv: true},
-		{name: "file implies markdown", file: "summary.md"},
-		{name: "github implies markdown", githubStepSummary: true, setStepSummaryEnv: true},
-		{name: "github without env var", githubStepSummary: true, wantErr: true},
-		{name: "unsupported format", format: "html", wantErr: true},
+		{name: "github step with env var", summaryGithubStep: true, setStepSummaryEnv: true},
+		{name: "github step without env var", summaryGithubStep: true, wantErr: true},
 	}
 
 	for _, tc := range tests {
@@ -106,7 +128,7 @@ func TestValidateSummaryOptions(t *testing.T) {
 			} else {
 				t.Setenv("GITHUB_STEP_SUMMARY", "")
 			}
-			err := validateSummaryOptions(tc.format, tc.file, tc.githubStepSummary)
+			err := validateSummaryOptions(tc.summaryGithubStep)
 			if tc.wantErr && err == nil {
 				t.Fatal("expected error")
 			}
@@ -114,6 +136,48 @@ func TestValidateSummaryOptions(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestEmitSummaryMarkdownStdout(t *testing.T) {
+	// Captures os.Stdout — must not run in parallel.
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	out := output{
+		Status:          "pass",
+		Workspace:       "/work",
+		FilesDiscovered: 5,
+		TotalFindings:   0,
+		Tools:           []runner.Result{},
+	}
+	emitOutput(out, false, true, "", false)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+
+	for _, want := range []string{
+		"## Pedant Summary",
+		"- Status: `pass`",
+		"- Files checked: 5",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout missing %q:\n%s", want, got)
+		}
+	}
+	// JSON must not appear when --summary-markdown is active.
+	if strings.Contains(got, `"status"`) {
+		t.Fatalf("stdout must not contain JSON when --summary-markdown is set:\n%s", got)
 	}
 }
 
@@ -131,7 +195,7 @@ func TestEmitSummaryWritesFileAndGitHubStepSummary(t *testing.T) {
 		Tools:           []runner.Result{},
 	}
 
-	emitOutput(out, false, "", summaryPath, true)
+	emitOutput(out, false, false, summaryPath, true)
 
 	summary, err := os.ReadFile(summaryPath)
 	if err != nil {

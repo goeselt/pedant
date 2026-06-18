@@ -59,7 +59,7 @@ findings and visible summary content.
 Markdown summary on stdout:
 
 ```bash
-docker run --rm -v "$(pwd):/work" pedant --nofix --summary markdown
+docker run --rm -v "$(pwd):/work" pedant --nofix --summary-markdown
 ```
 
 Markdown summary file:
@@ -75,7 +75,7 @@ GitHub step summary output:
 docker run --rm \
   -v "$(pwd):/work" \
   -e GITHUB_STEP_SUMMARY=/work/pedant-step-summary.md \
-  pedant --nofix --github-step-summary
+  pedant --nofix --summary-github-step
 
 cat pedant-step-summary.md
 ```
