@@ -77,8 +77,11 @@ func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile strin
 
 		if summaryGithubStep {
 			// validateSummaryOptions already guarantees GITHUB_STEP_SUMMARY is set.
+			// O_CREATE is intentionally omitted: the runner creates GITHUB_STEP_SUMMARY
+			// before the job starts. If the path was overwritten by a prior step we
+			// skip silently rather than creating a file at an arbitrary location.
 			path := os.Getenv("GITHUB_STEP_SUMMARY")
-			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+			f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o644)
 			if err != nil {
 				fatal("open GitHub step summary: %v", err)
 			}

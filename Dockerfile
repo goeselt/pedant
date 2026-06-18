@@ -223,6 +223,14 @@ RUN ln -s /etc/pedant/editorconfig/.editorconfig /.editorconfig \
 # remapping or open permissions. Since this is an ephemeral lint container
 # (no persistent state, no network services), the root default is acceptable.
 
+# Opt out of telemetry and automatic update checks made by Node.js tools
+# at startup. These would result in unexpected outbound network calls from
+# an ephemeral lint container.
+ENV DO_NOT_TRACK=1 \
+    DISABLE_OPENCOLLECTIVE=1 \
+    NEXT_TELEMETRY_DISABLED=1 \
+    GATSBY_TELEMETRY_DISABLED=1
+
 WORKDIR /work
 
 LABEL org.opencontainers.image.title="pedant" \

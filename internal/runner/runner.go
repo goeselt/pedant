@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Finding represents a single issue found by a tool.
@@ -71,6 +72,12 @@ const maxOutputBytes = 50 * 1024 * 1024 // 50 MB
 // Keeps the JSON output and Markdown summary bounded when a tool writes large
 // diagnostic text to stderr (e.g. after reading a symlinked file as config).
 const maxErrorLen = 4000
+
+// toolTimeout is the maximum wall-clock duration allowed for a single tool
+// (across all its batches). Tools that exceed this limit are killed by the
+// OS and reported as errors, preventing a deadlocked or pathologically slow
+// linter from stalling the pipeline indefinitely.
+const toolTimeout = 10 * time.Minute
 
 // -- Environment filtering ------------------------------------------------------------
 
@@ -204,9 +211,14 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 	// workspace-controlled config files cannot read them.
 	env := filterEnv(os.Environ())
 
+	// Cap per-tool wall-clock time so a deadlocked or pathologically slow linter
+	// cannot stall the pipeline indefinitely.
+	toolCtx, cancel := context.WithTimeout(ctx, toolTimeout)
+	defer cancel()
+
 	var allFindings []Finding
 	for _, batch := range batches {
-		findings, errMsg := invokeBatch(ctx, def, binary, workspace, fix, batch, log, env)
+		findings, errMsg := invokeBatch(toolCtx, def, binary, workspace, fix, batch, log, env)
 		if errMsg != "" {
 			if len(errMsg) > maxErrorLen {
 				errMsg = errMsg[:maxErrorLen] + " [truncated]"

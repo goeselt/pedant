@@ -238,6 +238,43 @@ func TestFilesRejectsPathspecMagic(t *testing.T) {
 	}
 }
 
+func TestFilesSkipsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	// Regular file — must be included.
+	write(t, dir, "main.go", "package main\n")
+
+	// Symlink pointing to a file inside the workspace — must be excluded.
+	if err := os.Symlink(filepath.Join(dir, "main.go"), filepath.Join(dir, "link.go")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	// Symlink pointing outside the workspace (e.g. /etc/passwd) — must be excluded.
+	outsideTarget := filepath.Join(t.TempDir(), "sensitive.txt")
+	if err := os.WriteFile(outsideTarget, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideTarget, filepath.Join(dir, "outside.go")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	gitRun(t, dir, "git", "add", ".")
+
+	got, err := Files(dir, nil, nil)
+	if err != nil {
+		t.Fatalf("Files: %v", err)
+	}
+
+	if len(got) != 1 || got[0] != "main.go" {
+		t.Errorf("Files() = %v, want [main.go] (symlinks must be excluded)", got)
+	}
+}
+
 func gitRun(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(args[0], args[1:]...)

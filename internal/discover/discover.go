@@ -67,8 +67,12 @@ func Files(workspace string, paths, ignore []string) ([]string, error) {
 		if l == "" || seen[l] {
 			continue
 		}
-		// Skip files tracked in the index but deleted from the working tree.
-		if _, err := os.Stat(filepath.Join(workspace, l)); err != nil {
+		// Skip files that are absent or are symlinks.
+		// Symlinks can point outside the workspace and would cause linters to
+		// read unintended files (e.g. /etc/passwd) whose content might surface
+		// in tool output or the step summary.
+		info, err := os.Lstat(filepath.Join(workspace, l))
+		if err != nil || info.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
 		seen[l] = true

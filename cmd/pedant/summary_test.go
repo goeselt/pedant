@@ -460,6 +460,10 @@ func TestEmitSummaryWritesFileAndGitHubStepSummary(t *testing.T) {
 	dir := t.TempDir()
 	summaryPath := filepath.Join(dir, "summary.md")
 	stepSummaryPath := filepath.Join(dir, "step-summary.md")
+	// Simulate the runner creating GITHUB_STEP_SUMMARY before the job starts.
+	if err := os.WriteFile(stepSummaryPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("GITHUB_STEP_SUMMARY", stepSummaryPath)
 
 	out := output{
