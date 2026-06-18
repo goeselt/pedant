@@ -4,31 +4,28 @@
 
 Pedant runs in five sequential phases. Reading this once is enough to orient yourself in the codebase.
 
-```
-1. Discovery       git ls-files  -->  discover.Files()
-                                     +- rejects pathspec-magic injection
-                                     +- deduplicates, skips deleted files
+1. **Discovery** -- `discover.Files()` runs `git ls-files` to collect tracked and untracked files.
+   - Rejects pathspec-magic injection in `--path` and `--ignore` values
+   - Deduplicates, skips deleted files and symlinks
 
-2. Filtering       pathignore.Filter()
-                                     +- removes node_modules/, vendor/, dist/, ...
-                                     +- emits warnings for explicit --path hits inside those dirs
+2. **Filtering** -- `pathignore.Filter()` removes conventionally ignored directories.
+   - Strips `node_modules/`, `vendor/`, `dist/`, and similar
+   - Emits warnings when an explicit `--path` argument lands inside one of those directories
 
-3. Classification  runner.ForTools()
-                                     +- iterates runner.Registry in order
-                                     +- each ToolDef.Globs selects matching files
-                                     +- tools with zero matches are silently skipped
+3. **Classification** -- `runner.ForTools()` assigns files to tools.
+   - Iterates `runner.Registry` in order
+   - Each `ToolDef.Globs` selects matching files; tools with zero matches are silently skipped
 
-4. Execution       runner.Run()  ×N  (one per tool with matching files)
-                                     +- optional fix pass (silent), then check pass
-                                     +- arg batching when total path length > 200 KB
-                                     +- per-tool timeout prevents stuck linters
-                                     +- logs info line if workspace config is used
+4. **Execution** -- `runner.RunWithTimeout()` runs once per tool with matching files.
+   - Optional fix pass (silent), followed by a check pass
+   - Arg batching when total path length exceeds 200 KB
+   - Per-tool timeout kills stuck linters and their child processes
+   - Logs an info line when a workspace-supplied config file is used
 
-5. Output          aggregate()   -->   JSON on stdout  (always, unless --summary-markdown)
-                                 -->   Markdown        (--summary-markdown / --summary-file /
-                                                       --summary-github-step)
-                                 -->   GITHUB_OUTPUT   (action outputs written automatically)
-```
+5. **Output** -- `aggregate()` collects results and emits:
+   - JSON to stdout (always, unless `--summary-markdown`)
+   - Markdown via `--summary-markdown`, `--summary-file`, or `--summary-github-step`
+   - Action output variables written to `$GITHUB_OUTPUT` automatically
 
 ## Design
 

@@ -4,6 +4,11 @@ A Docker-based linting and formatting orchestrator for Git repositories. It runs
 pass, reports findings as JSON on stdout by default, and can autofix what is fixable. No tool installations required --
 pull the image and run.
 
+Pedant fills the gap between no automated checks and a full quality pipeline. One action replaces fifteen separate tool
+integrations: no per-tool installation, no per-repository configuration overhead, and no version drift between
+repositories. It covers the checks that are cheap to run on every commit -- formatting, idiomatic lint, and style
+conventions -- and is intentionally complementary to, not a replacement for, security-focused tooling.
+
 ## Quick Start
 
 ```yaml
@@ -52,7 +57,7 @@ Use outputs to drive downstream steps:
 
 | Tool            | Checks                                                                           | Autofix            |
 | --------------- | -------------------------------------------------------------------------------- | ------------------ |
-| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules | :x:                |
+| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules |                    |
 | `prettier`      | Formatting of JSON, YAML, Markdown, HTML, CSS, JS/TS                             | :white_check_mark: |
 | `shfmt`         | Shell script formatting                                                          | :white_check_mark: |
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
@@ -61,31 +66,47 @@ Use outputs to drive downstream steps:
 | `stylelint`     | CSS lint                                                                         | :white_check_mark: |
 | `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
 | `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
-| `hadolint`      | Dockerfile best practices                                                        | :x:                |
-| `shellcheck`    | Shell script correctness                                                         | :x:                |
-| `yamllint`      | YAML syntax and style                                                            | :x:                |
-| `actionlint`    | GitHub Actions workflow correctness                                              | :x:                |
-| `golangci-lint` | Go static analysis                                                               | :x:                |
+| `hadolint`      | Dockerfile best practices                                                        |                    |
+| `shellcheck`    | Shell script correctness                                                         |                    |
+| `yamllint`      | YAML syntax and style                                                            |                    |
+| `actionlint`    | GitHub Actions workflow correctness                                              |                    |
+| `golangci-lint` | Go static analysis                                                               |                    |
 | `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 
 Tools only run when matching files are present. A repository without Go files, for example, will skip `golangci-lint`
 automatically.
+
+## Out of Scope
+
+pedant covers code style, formatting, and language-specific lint. The following categories are intentionally excluded:
+
+- **SAST and secret scanning** -- GitHub Advanced Security (CodeQL, secret scanning) covers these natively for GitHub
+  repositories; running a second SAST pass in pedant would duplicate effort and add noise.
+- **Dependency and container vulnerability scanning** -- Trivy, Grype, and `npm audit` match CVEs against dependency
+  trees and container images; Dependabot surfaces fixes as pull requests. These tools operate on build artifacts, not
+  source files.
+- **IaC misconfiguration** -- Checkov and tfsec analyze Terraform, Kubernetes, and CloudFormation manifests for security
+  misconfigurations. Their findings carry severity ratings and remediation workflows that belong in a dedicated review
+  gate, not alongside formatting errors.
+
+These tools require different permissions, longer runtimes, and produce findings with severity semantics that do not fit
+a per-commit lint pass.
 
 ## Configuration
 
 pedant ships a bundled config for every configurable tool. If a workspace config is found in the repository root, pedant
 always uses that instead of the bundled default -- per-tool, so you can override only the tools you care about.
 
-The bundled `eslint` config lints JavaScript and TypeScript out of the box, including JSX -- `.js`, `.jsx`, `.mjs`,
-`.cjs`, `.ts`, `.tsx`, `.mts` and `.cts`. It applies the non-type-checked `typescript-eslint` recommended rules, so no
-`tsconfig.json` is required; cross-file and type-aware checks remain the TypeScript compiler's job (`tsc`). Supply your
-own `eslint.config.*` to enable type-aware rules or any other project-specific setup.
+The bundled `eslint` config covers all common JS/TS extensions (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`,
+`.cts`) without requiring a `tsconfig.json`. Type-aware and cross-file checks are out of scope for pedant -- those
+belong in the TypeScript compiler (`tsc`). Supply your own `eslint.config.*` to enable them or any other
+project-specific rules.
 
 | Tool            | Workspace Config File                                                                                                                            |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                                                                            |
 | `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                                                                  |
-| `shfmt`         | -- (no config)                                                                                                                                   |
+| `shfmt`         | (no config)                                                                                                                                      |
 | `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
 | `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
 | `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |
@@ -96,7 +117,7 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `actionlint`    | `.github/actionlint.yaml`, `.github/actionlint.yml`, `actionlint.yaml`, `actionlint.yml`                                                         |
 | `golangci-lint` | `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`, `.golangci.json`                                                                            |
 | `ruff`          | `ruff.toml`, `.ruff.toml`, `pyproject.toml`                                                                                                      |
-| `plainify`      | -- (no config)                                                                                                                                   |
+| `plainify`      | (no config)                                                                                                                                      |
 
 ## Options
 
@@ -112,13 +133,15 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout               |
 | `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout |
 
-Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
-`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
-a warning and omits those files from tool runs.
+### File Discovery
 
 File discovery uses `git ls-files --exclude-standard`, so `.gitignore`, `.git/info/exclude`, and global Git ignore rules
 are respected for untracked files, including when `--path` is used. Files already tracked by Git remain discoverable,
 which matches Git's normal ignore behavior.
+
+Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
+`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
+a warning and omits those files from tool runs.
 
 ## Output
 

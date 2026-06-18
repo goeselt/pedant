@@ -51,8 +51,8 @@ func writeGitHubOutputs(out output) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
-	fmt.Fprintf(f, "status=%s\ntotal-findings=%d\nfiles-discovered=%d\ntools-run=%d\ntools-skipped=%d\n",
+	defer func() { _ = f.Close() }()
+	_, _ = fmt.Fprintf(f, "status=%s\ntotal-findings=%d\nfiles-discovered=%d\ntools-run=%d\ntools-skipped=%d\n",
 		out.Status, out.TotalFindings, out.FilesDiscovered, out.ToolsRun, out.ToolsSkipped)
 }
 

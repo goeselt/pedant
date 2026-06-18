@@ -157,7 +157,9 @@ func TestEmitSummaryMarkdownStdout(t *testing.T) {
 	}
 	emitOutput(out, false, true, "", false)
 
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = old
 
 	var buf bytes.Buffer
@@ -246,7 +248,9 @@ func TestEmitOutputJSONStillEmittedWithSummaryFile(t *testing.T) {
 	// --summary-file is set but NOT --summary-markdown: JSON must still appear on stdout.
 	emitOutput(out, false, false, summaryPath, false)
 
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = old
 
 	var buf bytes.Buffer
