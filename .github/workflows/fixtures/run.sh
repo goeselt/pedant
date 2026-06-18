@@ -23,7 +23,7 @@ set -euo pipefail
 #   }
 #
 # The runner copies the scenario into a temporary git workspace (without
-# expected.json), runs pedant --nofix --pretty, projects the JSON output down
+# expected.json), runs pedant --pretty, projects the JSON output down
 # to the same shape, and diffs the two. Exact line numbers and tool messages
 # are deliberately not asserted because they are more likely to change across
 # upstream tool versions. Finding counts, file paths, and rule IDs are asserted
@@ -74,7 +74,7 @@ EOF
 }
 
 # capture_actual <scenario_dir>: print the compact projection of pedant's
-# --nofix output for a fresh git workspace cloned from scenario_dir minus its
+# check-only output for a fresh git workspace cloned from scenario_dir minus its
 # expected.json.
 capture_actual() {
     local scenario_dir=$1
@@ -84,7 +84,7 @@ capture_actual() {
     rm -f "$tmp/expected.json"
     init_workspace "$tmp"
     local raw
-    raw=$(docker run --rm -v "$tmp":/work "$Image" --nofix --pretty 2>/dev/null || true)
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty 2>/dev/null || true)
     rm -rf "$tmp"
     printf '%s\n' "$raw" | jq -S "$Project_Jq"
 }
@@ -178,7 +178,7 @@ run_option_smoke_tests() {
     printf 'var answer = 42\nif (answer == "42") console.log(answer)\n' >"$tmp/src/bad.js"
     init_workspace "$tmp"
 
-    raw=$(docker run --rm -v "$tmp":/work "$Image" --nofix --pretty --path docs 2>/dev/null || true)
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty --path docs 2>/dev/null || true)
     if ! printf '%s\n' "$raw" | jq -e '
         .files_discovered == 1
         and .status == "fail"
@@ -190,7 +190,7 @@ run_option_smoke_tests() {
         return 1
     fi
 
-    raw=$(docker run --rm -v "$tmp":/work "$Image" --nofix --pretty --ignore docs/bad.md --ignore src/bad.js 2>/dev/null || true)
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty --ignore docs/bad.md --ignore src/bad.js 2>/dev/null || true)
     if ! printf '%s\n' "$raw" | jq -e '
         .files_discovered == 0
         and .status == "pass"
@@ -203,21 +203,24 @@ run_option_smoke_tests() {
         return 1
     fi
 
+    # GITHUB_STEP_SUMMARY must exist before pedant runs: O_CREATE is intentionally
+    # omitted from the writer so that pedant cannot create files at arbitrary paths.
+    touch "$tmp/step-summary.md"
     raw=$(
         docker run --rm \
             -v "$tmp":/work \
             -e GITHUB_STEP_SUMMARY=/work/step-summary.md \
             "$Image" \
-            --nofix \
             --pretty \
             --ignore docs/bad.md \
             --ignore src/bad.js \
             --summary-file summary.md \
-            --github-step-summary \
+            --summary-github-step \
             2>/dev/null || true
     )
-    if [[ -n "$raw" ]]; then
-        printf 'FAIL: option smoke -- summary-file/github-step-summary wrote unexpected stdout\n' >&2
+    # JSON is still emitted to stdout alongside --summary-file / --summary-github-step.
+    if ! printf '%s\n' "$raw" | jq -e '.status == "pass"' >/dev/null; then
+        printf 'FAIL: option smoke -- summary-file/summary-github-step: unexpected JSON output\n' >&2
         printf '%s\n' "$raw" >&2
         rm -rf "$tmp"
         return 1
@@ -238,22 +241,23 @@ run_option_smoke_tests() {
         return 1
     fi
 
+    # Action mode: entrypoint.sh reads INPUT_* env vars when GITHUB_ACTIONS=true.
+    touch "$tmp/action-step-summary.md"
     raw=$(
         docker run --rm \
             -v "$tmp":/work \
             -e GITHUB_ACTIONS=true \
             -e GITHUB_STEP_SUMMARY=/work/action-step-summary.md \
+            -e INPUT_FIX=false \
+            -e INPUT_PATHS=docs \
+            -e INPUT_SUMMARY_MARKDOWN=true \
+            -e INPUT_SUMMARY_FILE=action-summary.md \
+            -e INPUT_SUMMARY_GITHUB_STEP=true \
             "$Image" \
-            false \
-            docs \
-            "" \
-            true \
-            action-summary.md \
-            true \
             2>/dev/null || true
     )
     if ! grep -q '## Pedant Summary' <<<"$raw" || grep -q '"status"' <<<"$raw"; then
-        printf 'FAIL: option smoke -- action args did not produce Markdown stdout\n' >&2
+        printf 'FAIL: option smoke -- action inputs did not produce Markdown stdout\n' >&2
         printf '%s\n' "$raw" >&2
         rm -rf "$tmp"
         return 1
