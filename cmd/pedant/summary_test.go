@@ -275,6 +275,10 @@ func TestEmitOutputJSONStillEmittedWithSummaryFile(t *testing.T) {
 func TestWriteGitHubOutputs(t *testing.T) {
 	dir := t.TempDir()
 	outputPath := filepath.Join(dir, "github_output")
+	// Simulate the GitHub Actions runner creating GITHUB_OUTPUT before the job starts.
+	if err := os.WriteFile(outputPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("GITHUB_OUTPUT", outputPath)
 
 	out := output{
@@ -310,6 +314,17 @@ func TestWriteGitHubOutputsNoEnvVar(t *testing.T) {
 	t.Setenv("GITHUB_OUTPUT", "")
 	// Must not panic or error when GITHUB_OUTPUT is not set.
 	writeGitHubOutputs(output{Status: "pass"})
+}
+
+func TestWriteGitHubOutputsDoesNotCreateMissingFile(t *testing.T) {
+	nonExistent := filepath.Join(t.TempDir(), "does_not_exist.txt")
+	t.Setenv("GITHUB_OUTPUT", nonExistent)
+
+	writeGitHubOutputs(output{Status: "pass"})
+
+	if _, err := os.Stat(nonExistent); !os.IsNotExist(err) {
+		t.Error("writeGitHubOutputs must not create GITHUB_OUTPUT when the file does not exist")
+	}
 }
 
 func TestRenderMarkdownSummaryWorkspaceConfigs(t *testing.T) {

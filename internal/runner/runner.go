@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -55,9 +56,85 @@ type ToolDef struct {
 	Parse               func(stdout, stderr string, exitCode int, workspace string) ([]Finding, error)
 }
 
+// -- Constants ------------------------------------------------------------------------
+
 // maxFileArgBytes is the maximum total byte-length of file-path arguments per tool invocation.
 // Kept well below Linux ARG_MAX (~2 MB) to leave headroom for the binary path, flags, and environment variables.
 const maxFileArgBytes = 200 * 1024
+
+// maxOutputBytes caps the in-memory buffer used to collect tool stdout/stderr.
+// Output beyond this limit is silently discarded; the resulting parse error
+// surfaces as a tool error result rather than an OOM crash.
+const maxOutputBytes = 50 * 1024 * 1024 // 50 MB
+
+// maxErrorLen caps the length of error messages stored in Result.Error.
+// Keeps the JSON output and Markdown summary bounded when a tool writes large
+// diagnostic text to stderr (e.g. after reading a symlinked file as config).
+const maxErrorLen = 4000
+
+// -- Environment filtering ------------------------------------------------------------
+
+// isSensitiveEnvVar reports whether an environment variable name matches a
+// pattern associated with secrets. Tool subprocesses (which may load
+// workspace-controlled config files that execute arbitrary code) receive a
+// filtered copy of the process environment with these variables removed.
+func isSensitiveEnvVar(name string) bool {
+	upper := strings.ToUpper(name)
+	// Block well-known CI secret namespaces by prefix.
+	for _, p := range []string{"INPUT_", "ACTIONS_"} {
+		if strings.HasPrefix(upper, p) {
+			return true
+		}
+	}
+	// Block common secret naming patterns by suffix.
+	for _, s := range []string{"_TOKEN", "_SECRET", "_KEY", "_PASSWORD", "_CREDENTIAL"} {
+		if strings.HasSuffix(upper, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// filterEnv returns a copy of env with likely-secret variables removed.
+// Retained: PATH, HOME, GOPATH, GITHUB_WORKSPACE, and all other operational vars.
+// Removed: *_TOKEN, *_SECRET, *_KEY, *_PASSWORD, *_CREDENTIAL, INPUT_*, ACTIONS_*.
+func filterEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !isSensitiveEnvVar(name) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// -- Output buffering -----------------------------------------------------------------
+
+// limitedBuffer is a bytes.Buffer that stops accepting writes once limit bytes
+// have been accumulated. Excess data is silently discarded. limit == 0 means
+// no limit (behaves identically to bytes.Buffer).
+type limitedBuffer struct {
+	bytes.Buffer
+	limit int
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	full := len(p)
+	if b.limit > 0 {
+		available := b.limit - b.Len()
+		if available <= 0 {
+			return full, nil // discard; report full len so the process is not stalled
+		}
+		if len(p) > available {
+			p = p[:available]
+		}
+	}
+	_, err := b.Buffer.Write(p)
+	return full, err // always report full len — a short-write would stall the subprocess
+}
+
+// -- Core execution -------------------------------------------------------------------
 
 // splitBatches partitions files into slices whose total path length stays within maxFileArgBytes.
 // A single-element result means no splitting was needed.
@@ -122,10 +199,18 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 		batches = splitBatches(files)
 	}
 
+	// Compute a filtered environment once per Run call; all batches share it.
+	// Secrets (tokens, keys, passwords, action inputs) are removed so that
+	// workspace-controlled config files cannot read them.
+	env := filterEnv(os.Environ())
+
 	var allFindings []Finding
 	for _, batch := range batches {
-		findings, errMsg := invokeBatch(ctx, def, binary, workspace, fix, batch, log)
+		findings, errMsg := invokeBatch(ctx, def, binary, workspace, fix, batch, log, env)
 		if errMsg != "" {
+			if len(errMsg) > maxErrorLen {
+				errMsg = errMsg[:maxErrorLen] + " [truncated]"
+			}
 			_, _ = fmt.Fprintf(log, "[%s] error -- %s\n", def.Name, errMsg)
 			return Result{Tool: def.Name, Status: "error", Error: errMsg, WorkspaceConfig: wsConfig}
 		}
@@ -151,11 +236,13 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 
 // invokeBatch runs one fix+check cycle for a single batch of files.
 // Returns (findings, errMsg); errMsg != "" is a hard error that aborts batching.
-func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer) ([]Finding, string) {
+func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer, env []string) ([]Finding, string) {
 	if fix && def.CanFix {
 		fixCmd := exec.CommandContext(ctx, binary, def.Args(true, workspace, files)...)
 		fixCmd.Dir = workspace
-		var fixStderr bytes.Buffer
+		fixCmd.Env = env
+		var fixStderr limitedBuffer
+		fixStderr.limit = maxOutputBytes
 		fixCmd.Stderr = &fixStderr
 		if err := fixCmd.Run(); err != nil {
 			var exitErr *exec.ExitError
@@ -170,8 +257,11 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 	// Check pass -- always runs; reports what remains (or all findings in check-only mode).
 	cmd := exec.CommandContext(ctx, binary, def.Args(false, workspace, files)...)
 	cmd.Dir = workspace
+	cmd.Env = env
 
-	var stdout, stderr bytes.Buffer
+	var stdout, stderr limitedBuffer
+	stdout.limit = maxOutputBytes
+	stderr.limit = maxOutputBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

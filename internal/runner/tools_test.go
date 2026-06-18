@@ -113,3 +113,32 @@ func TestEditorconfigArgsForceGCCFormat(t *testing.T) {
 		t.Fatalf("editorconfig args = %v, want forced -format gcc", args)
 	}
 }
+
+func TestWorkspaceConfigRelRejectsSymlinks(t *testing.T) {
+	t.Parallel()
+
+	// Symlink pointing to a valid target — must be rejected.
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "real.cfg")
+	if err := os.WriteFile(target, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, ".shellcheckrc")); err != nil {
+		t.Fatal(err)
+	}
+
+	got := workspaceConfigRel(dir, ".shellcheckrc")
+	if got != "" {
+		t.Errorf("workspaceConfigRel() = %q; symlinks must be rejected", got)
+	}
+
+	// Regular file in same dir must still be found.
+	dir2 := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir2, ".shellcheckrc"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got = workspaceConfigRel(dir2, ".shellcheckrc")
+	if got != ".shellcheckrc" {
+		t.Errorf("workspaceConfigRel() = %q, want .shellcheckrc", got)
+	}
+}

@@ -43,7 +43,11 @@ func writeGitHubOutputs(out output) {
 	if path == "" {
 		return
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	// O_CREATE is intentionally omitted: the GitHub Actions runner creates
+	// GITHUB_OUTPUT before the job starts. If the file does not exist (e.g.
+	// because GITHUB_OUTPUT was overwritten by a prior step), we skip silently
+	// rather than writing to an arbitrary path.
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}

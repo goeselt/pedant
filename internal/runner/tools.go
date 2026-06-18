@@ -32,12 +32,19 @@ var Registry = []ToolDef{
 // -- Helpers -----------------------------------------------------------------------------------------
 
 // workspaceConfigRel returns the workspace-relative path of the first candidate
-// that exists under workspace, or "" if none are found.
+// that exists under workspace as a regular file (not a symlink), or "" if none
+// are found. Symlinks are rejected because they could point outside the workspace
+// and cause tools to read unintended files whose content might surface in output.
 func workspaceConfigRel(workspace string, candidates ...string) string {
 	for _, c := range candidates {
-		if _, err := os.Stat(filepath.Join(workspace, c)); err == nil {
-			return c
+		info, err := os.Lstat(filepath.Join(workspace, c))
+		if err != nil {
+			continue
 		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		return c
 	}
 	return ""
 }
