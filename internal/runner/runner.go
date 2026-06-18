@@ -23,10 +23,11 @@ type Finding struct {
 
 // Result holds the outcome of running one tool.
 type Result struct {
-	Tool     string    `json:"name"`
-	Status   string    `json:"status"` // "pass", "fail", "error", "skip"
-	Findings []Finding `json:"findings"`
-	Error    string    `json:"error,omitempty"`
+	Tool            string    `json:"name"`
+	Status          string    `json:"status"` // "pass", "fail", "error", "skip"
+	Findings        []Finding `json:"findings"`
+	Error           string    `json:"error,omitempty"`
+	WorkspaceConfig string    `json:"workspace_config,omitempty"`
 }
 
 // ToolDef describes how to invoke a tool and interpret its output.
@@ -45,8 +46,13 @@ type ToolDef struct {
 	// A nil Skip means never skip.
 	Skip   func(workspace string) bool
 	Reason string // optional explanation appended to skip log when Skip returns true
-	Args   func(fix bool, workspace string, files []string) []string
-	Parse  func(stdout, stderr string, exitCode int, workspace string) ([]Finding, error)
+	// FindWorkspaceConfig returns the workspace-relative path of a
+	// workspace-supplied configuration file if one is present, or "" if the
+	// bundled default will be used. When non-empty, Run logs an info line and
+	// stores the path in Result.WorkspaceConfig.
+	FindWorkspaceConfig func(workspace string) string
+	Args                func(fix bool, workspace string, files []string) []string
+	Parse               func(stdout, stderr string, exitCode int, workspace string) ([]Finding, error)
 }
 
 // maxFileArgBytes is the maximum total byte-length of file-path arguments per tool invocation.
@@ -96,6 +102,14 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 		return Result{Tool: def.Name, Status: "skip"}
 	}
 
+	var wsConfig string
+	if def.FindWorkspaceConfig != nil {
+		wsConfig = def.FindWorkspaceConfig(workspace)
+		if wsConfig != "" {
+			_, _ = fmt.Fprintf(log, "[%s] info -- using workspace config %s; workspace-controlled configs can execute arbitrary code\n", def.Name, wsConfig)
+		}
+	}
+
 	_, _ = fmt.Fprintf(log, "[%s] checking %d files...\n", def.Name, len(files))
 
 	binary := def.Binary
@@ -113,14 +127,14 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 		findings, errMsg := invokeBatch(ctx, def, binary, workspace, fix, batch, log)
 		if errMsg != "" {
 			_, _ = fmt.Fprintf(log, "[%s] error -- %s\n", def.Name, errMsg)
-			return Result{Tool: def.Name, Status: "error", Error: errMsg}
+			return Result{Tool: def.Name, Status: "error", Error: errMsg, WorkspaceConfig: wsConfig}
 		}
 		allFindings = append(allFindings, findings...)
 	}
 
 	if len(allFindings) == 0 {
 		_, _ = fmt.Fprintf(log, "[%s] pass\n", def.Name)
-		return Result{Tool: def.Name, Status: "pass"}
+		return Result{Tool: def.Name, Status: "pass", WorkspaceConfig: wsConfig}
 	}
 
 	_, _ = fmt.Fprintf(log, "[%s] %d finding(s)\n", def.Name, len(allFindings))
@@ -128,9 +142,10 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 		printFinding(log, f)
 	}
 	return Result{
-		Tool:     def.Name,
-		Status:   "fail",
-		Findings: allFindings,
+		Tool:            def.Name,
+		Status:          "fail",
+		Findings:        allFindings,
+		WorkspaceConfig: wsConfig,
 	}
 }
 

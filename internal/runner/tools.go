@@ -42,6 +42,24 @@ func workspaceConfig(workspace string, candidates ...string) string {
 	return ""
 }
 
+// workspaceConfigRel is like workspaceConfig but returns the workspace-relative
+// candidate path instead of the absolute path. Used by FindWorkspaceConfig fields.
+func workspaceConfigRel(workspace string, candidates ...string) string {
+	for _, c := range candidates {
+		if _, err := os.Stat(filepath.Join(workspace, c)); err == nil {
+			return c
+		}
+	}
+	return ""
+}
+
+// makeConfigFinder returns a FindWorkspaceConfig function for the given candidates.
+func makeConfigFinder(candidates ...string) func(workspace string) string {
+	return func(workspace string) string {
+		return workspaceConfigRel(workspace, candidates...)
+	}
+}
+
 // bundledConfig returns path if it exists on the filesystem (inside the Docker image at /etc/pedant/),
 // or "" if not present (e.g. when running outside the container during development).
 func bundledConfig(path string) string {
@@ -78,10 +96,11 @@ func jsonOutput(stdout, stderr string) string {
 // -- editorconfig (ec) -------------------------------------------------------------------------------
 
 var editorconfigTool = ToolDef{
-	Name:   "editorconfig",
-	Binary: "ec",
-	CanFix: false,
-	Globs:  nil,
+	Name:                "editorconfig",
+	Binary:              "ec",
+	CanFix:              false,
+	Globs:               nil,
+	FindWorkspaceConfig: makeConfigFinder(".editorconfig-checker.json", ".ecrc"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-no-color", "-format", "gcc"}
 		if workspaceConfig(workspace, ".editorconfig-checker.json", ".ecrc") == "" {
@@ -141,9 +160,10 @@ var prettierConfigCandidates = []string{
 }
 
 var prettierTool = ToolDef{
-	Name:   "prettier",
-	CanFix: true,
-	Globs:  []string{"*.json", "*.yml", "*.yaml", "*.md", "*.html", "*.css", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs"},
+	Name:                "prettier",
+	CanFix:              true,
+	Globs:               []string{"*.json", "*.yml", "*.yaml", "*.md", "*.html", "*.css", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs", "*.cjs"},
+	FindWorkspaceConfig: makeConfigFinder(prettierConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"--no-color"}
 		if workspaceConfig(workspace, prettierConfigCandidates...) == "" {
@@ -210,9 +230,10 @@ func parseShfmt(stdout, _ string, _ int, _ string) ([]Finding, error) {
 // -- textlint ----------------------------------------------------------------------------------------
 
 var textlintTool = ToolDef{
-	Name:   "textlint",
-	CanFix: true,
-	Globs:  []string{"*.md"},
+	Name:                "textlint",
+	CanFix:              true,
+	Globs:               []string{"*.md"},
+	FindWorkspaceConfig: makeConfigFinder(".textlintrc", ".textlintrc.json", ".textlintrc.yaml", ".textlintrc.yml"),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
 		if workspaceConfig(workspace, ".textlintrc", ".textlintrc.json", ".textlintrc.yaml", ".textlintrc.yml") == "" {
@@ -271,6 +292,10 @@ var markdownlintTool = ToolDef{
 	Binary: "markdownlint-cli2",
 	CanFix: true,
 	Globs:  []string{"*.md"},
+	FindWorkspaceConfig: makeConfigFinder(
+		".markdownlint-cli2.yaml", ".markdownlint-cli2.yml", ".markdownlint-cli2.jsonc",
+		".markdownlint.yaml", ".markdownlint.yml", ".markdownlint.json",
+	),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
 		if workspaceConfig(workspace,
@@ -324,9 +349,10 @@ var eslintConfigCandidates = []string{
 }
 
 var eslintTool = ToolDef{
-	Name:   "eslint",
-	CanFix: true,
-	Globs:  []string{"*.js", "*.jsx", "*.mjs", "*.cjs", "*.ts", "*.tsx", "*.mts", "*.cts"},
+	Name:                "eslint",
+	CanFix:              true,
+	Globs:               []string{"*.js", "*.jsx", "*.mjs", "*.cjs", "*.ts", "*.tsx", "*.mts", "*.cts"},
+	FindWorkspaceConfig: makeConfigFinder(eslintConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
 		if workspaceConfig(workspace, eslintConfigCandidates...) == "" {
@@ -387,9 +413,10 @@ func parseEslint(stdout, stderr string, _ int, workspace string) ([]Finding, err
 // -- hadolint ----------------------------------------------------------------------------------------
 
 var hadolintTool = ToolDef{
-	Name:   "hadolint",
-	CanFix: false,
-	Globs:  []string{"Dockerfile", "Dockerfile.*", "*.dockerfile"},
+	Name:                "hadolint",
+	CanFix:              false,
+	Globs:               []string{"Dockerfile", "Dockerfile.*", "*.dockerfile"},
+	FindWorkspaceConfig: makeConfigFinder(".hadolint.yaml", ".hadolint.yml"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"--format=json"}
 		cfgFile := workspaceConfig(workspace, ".hadolint.yaml", ".hadolint.yml")
@@ -445,9 +472,10 @@ func parseHadolint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 // -- shellcheck --------------------------------------------------------------------------------------
 
 var shellcheckTool = ToolDef{
-	Name:   "shellcheck",
-	CanFix: false,
-	Globs:  []string{"*.sh"},
+	Name:                "shellcheck",
+	CanFix:              false,
+	Globs:               []string{"*.sh"},
+	FindWorkspaceConfig: makeConfigFinder(".shellcheckrc"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"--format=json"}
 		rcfile := workspaceConfig(workspace, ".shellcheckrc")
@@ -497,9 +525,10 @@ func parseShellcheck(stdout, stderr string, _ int, _ string) ([]Finding, error) 
 // -- yamllint ----------------------------------------------------------------------------------------
 
 var yamllintTool = ToolDef{
-	Name:   "yamllint",
-	CanFix: false,
-	Globs:  []string{"*.yml", "*.yaml"},
+	Name:                "yamllint",
+	CanFix:              false,
+	Globs:               []string{"*.yml", "*.yaml"},
+	FindWorkspaceConfig: makeConfigFinder(".yamllint.yml", ".yamllint.yaml", ".yamllint"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-f", "parsable"}
 		cfgFile := workspaceConfig(workspace, ".yamllint.yml", ".yamllint.yaml", ".yamllint")
@@ -550,9 +579,10 @@ func parseYamllint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 // -- actionlint --------------------------------------------------------------------------------------
 
 var actionlintTool = ToolDef{
-	Name:   "actionlint",
-	CanFix: false,
-	Globs:  []string{".github/workflows/*.yml", ".github/workflows/*.yaml"},
+	Name:                "actionlint",
+	CanFix:              false,
+	Globs:               []string{".github/workflows/*.yml", ".github/workflows/*.yaml"},
+	FindWorkspaceConfig: makeConfigFinder(".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-no-color", "-format", "{{json .}}"}
 		cfgFile := workspaceConfig(workspace, ".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml")
@@ -609,8 +639,9 @@ var golangciTool = ToolDef{
 		_, err := os.Stat(filepath.Join(workspace, "go.mod"))
 		return err != nil
 	},
-	Reason:  "no go.mod at workspace root",
-	NoBatch: true, // ignores the file list; always runs ./...
+	Reason:              "no go.mod at workspace root",
+	NoBatch:             true, // ignores the file list; always runs ./...
+	FindWorkspaceConfig: makeConfigFinder(".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"),
 	Args: func(_ bool, workspace string, _ []string) []string {
 		// golangci-lint operates on packages, not individual files.
 		args := []string{"run", "--output.json.path=stdout"}
@@ -731,10 +762,11 @@ var ruffConfigCandidates = []string{
 }
 
 var ruffFormatTool = ToolDef{
-	Name:   "ruff-format",
-	Binary: "ruff",
-	CanFix: true,
-	Globs:  []string{"*.py"},
+	Name:                "ruff-format",
+	Binary:              "ruff",
+	CanFix:              true,
+	Globs:               []string{"*.py"},
+	FindWorkspaceConfig: makeConfigFinder(ruffConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"format", "--no-cache"}
 		if workspaceConfig(workspace, ruffConfigCandidates...) == "" {
@@ -780,9 +812,10 @@ var stylelintConfigCandidates = []string{
 }
 
 var stylelintTool = ToolDef{
-	Name:   "stylelint",
-	CanFix: true,
-	Globs:  []string{"*.css"},
+	Name:                "stylelint",
+	CanFix:              true,
+	Globs:               []string{"*.css"},
+	FindWorkspaceConfig: makeConfigFinder(stylelintConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
 		if workspaceConfig(workspace, stylelintConfigCandidates...) == "" {
@@ -844,10 +877,11 @@ func parseStylelint(stdout, stderr string, _ int, workspace string) ([]Finding, 
 // -- ruff (check) ------------------------------------------------------------------------------------
 
 var ruffTool = ToolDef{
-	Name:   "ruff",
-	Binary: "ruff",
-	CanFix: true,
-	Globs:  []string{"*.py"},
+	Name:                "ruff",
+	Binary:              "ruff",
+	CanFix:              true,
+	Globs:               []string{"*.py"},
+	FindWorkspaceConfig: makeConfigFinder(ruffConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"check", "--no-cache"}
 		if workspaceConfig(workspace, ruffConfigCandidates...) == "" {

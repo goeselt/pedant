@@ -79,8 +79,11 @@ func renderMarkdownSummary(out output) string {
 	fmt.Fprintf(&b, "- Files checked: %d\n", out.FilesDiscovered)
 	fmt.Fprintf(&b, "- Findings: %d\n", out.TotalFindings)
 	fmt.Fprintf(&b, "- Tools with findings/errors: %d\n", len(out.Tools))
+	if len(out.WorkspaceConfigs) > 0 {
+		fmt.Fprintf(&b, "- Workspace configs: %d\n", len(out.WorkspaceConfigs))
+	}
 
-	if len(out.Tools) == 0 {
+	if len(out.Tools) == 0 && len(out.WorkspaceConfigs) == 0 {
 		return b.String()
 	}
 
@@ -115,6 +118,17 @@ func renderMarkdownSummary(out output) string {
 				ruleCell(finding),
 				tableText(finding.Message),
 			)
+		}
+	}
+
+	if len(out.WorkspaceConfigs) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintln(&b, "### Workspace Configs")
+		fmt.Fprintln(&b)
+		fmt.Fprintln(&b, "| Tool | Config |")
+		fmt.Fprintln(&b, "| --- | --- |")
+		for _, wc := range out.WorkspaceConfigs {
+			fmt.Fprintf(&b, "| <code>%s</code> | <code>%s</code> |\n", htmlCodeText(wc.Tool), htmlCodeText(wc.Config))
 		}
 	}
 

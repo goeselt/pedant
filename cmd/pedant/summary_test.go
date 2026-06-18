@@ -181,6 +181,56 @@ func TestEmitSummaryMarkdownStdout(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownSummaryWorkspaceConfigs(t *testing.T) {
+	t.Parallel()
+
+	out := output{
+		Status:          "pass",
+		Workspace:       "/work",
+		FilesDiscovered: 5,
+		TotalFindings:   0,
+		Tools:           []runner.Result{},
+		WorkspaceConfigs: []configUse{
+			{Tool: "eslint", Config: "eslint.config.mjs"},
+			{Tool: "prettier", Config: ".prettierrc"},
+		},
+	}
+
+	got := renderMarkdownSummary(out)
+
+	for _, want := range []string{
+		"- Workspace configs: 2",
+		"### Workspace Configs",
+		"| <code>eslint</code> | <code>eslint.config.mjs</code> |",
+		"| <code>prettier</code> | <code>.prettierrc</code> |",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("summary missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderMarkdownSummaryNoWorkspaceConfigs(t *testing.T) {
+	t.Parallel()
+
+	out := output{
+		Status:          "pass",
+		Workspace:       "/work",
+		FilesDiscovered: 5,
+		TotalFindings:   0,
+		Tools:           []runner.Result{},
+	}
+
+	got := renderMarkdownSummary(out)
+
+	if strings.Contains(got, "Workspace Configs") {
+		t.Fatalf("summary should not contain workspace configs section when none present:\n%s", got)
+	}
+	if strings.Contains(got, "- Workspace configs:") {
+		t.Fatalf("summary should not show workspace configs counter when zero:\n%s", got)
+	}
+}
+
 func TestValidateSummaryFile(t *testing.T) {
 	t.Parallel()
 

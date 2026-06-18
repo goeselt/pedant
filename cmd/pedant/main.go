@@ -121,7 +121,7 @@ func main() {
 	files = filteredFiles
 
 	if len(files) == 0 {
-		out := aggregate(absWorkspace, files, nil, "pass")
+		out := aggregate(absWorkspace, files, nil, nil, "pass")
 		emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 		os.Exit(0)
 	}
@@ -130,6 +130,7 @@ func main() {
 
 	ctx := context.Background()
 	var results []runner.Result
+	var wsConfigs []configUse
 	anyFail := false
 	anyError := false
 
@@ -148,6 +149,9 @@ func main() {
 		if result.Status != "pass" && result.Status != "skip" {
 			results = append(results, result)
 		}
+		if result.WorkspaceConfig != "" {
+			wsConfigs = append(wsConfigs, configUse{Tool: result.Tool, Config: result.WorkspaceConfig})
+		}
 	}
 
 	logf("[%s] done -- %d finding(s)\n", appName, totalFindings(results))
@@ -158,7 +162,7 @@ func main() {
 	} else if anyFail {
 		outStatus = "fail"
 	}
-	out := aggregate(absWorkspace, files, results, outStatus)
+	out := aggregate(absWorkspace, files, results, wsConfigs, outStatus)
 	emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 
 	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
@@ -204,24 +208,32 @@ func totalFindings(results []runner.Result) int {
 	return total
 }
 
-type output struct {
-	Status          string          `json:"status"`
-	Workspace       string          `json:"workspace"`
-	FilesDiscovered int             `json:"files_discovered"`
-	TotalFindings   int             `json:"total_findings"`
-	Tools           []runner.Result `json:"tools"`
+// configUse records a tool that used a workspace-supplied configuration file.
+type configUse struct {
+	Tool   string `json:"tool"`
+	Config string `json:"config"`
 }
 
-func aggregate(workspace string, files []string, results []runner.Result, status string) output {
+type output struct {
+	Status           string          `json:"status"`
+	Workspace        string          `json:"workspace"`
+	FilesDiscovered  int             `json:"files_discovered"`
+	TotalFindings    int             `json:"total_findings"`
+	Tools            []runner.Result `json:"tools"`
+	WorkspaceConfigs []configUse     `json:"workspace_configs,omitempty"`
+}
+
+func aggregate(workspace string, files []string, results []runner.Result, wsConfigs []configUse, status string) output {
 	if results == nil {
 		results = []runner.Result{}
 	}
 	return output{
-		Status:          status,
-		Workspace:       workspace,
-		FilesDiscovered: len(files),
-		TotalFindings:   totalFindings(results),
-		Tools:           results,
+		Status:           status,
+		Workspace:        workspace,
+		FilesDiscovered:  len(files),
+		TotalFindings:    totalFindings(results),
+		Tools:            results,
+		WorkspaceConfigs: wsConfigs,
 	}
 }
 
