@@ -246,15 +246,15 @@ func TestFilesSkipsSymlinks(t *testing.T) {
 	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
 	gitRun(t, dir, "git", "config", "user.name", "Test")
 
-	// Regular file — must be included.
+	// Regular file -- must be included.
 	write(t, dir, "main.go", "package main\n")
 
-	// Symlink pointing to a file inside the workspace — must be excluded.
+	// Symlink pointing to a file inside the workspace -- must be excluded.
 	if err := os.Symlink(filepath.Join(dir, "main.go"), filepath.Join(dir, "link.go")); err != nil {
 		t.Fatalf("Symlink: %v", err)
 	}
 
-	// Symlink pointing outside the workspace (e.g. /etc/passwd) — must be excluded.
+	// Symlink pointing outside the workspace (e.g. /etc/passwd) -- must be excluded.
 	outsideTarget := filepath.Join(t.TempDir(), "sensitive.txt")
 	if err := os.WriteFile(outsideTarget, []byte("secret"), 0o644); err != nil {
 		t.Fatal(err)

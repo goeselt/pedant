@@ -15,14 +15,14 @@ With options:
 ```yaml
 - uses: goeselt/pedant@v1
   with:
-    fix: 'true'               # apply auto-fixes (default: false — check only)
-    paths: |                  # restrict scan to these paths (one per line)
+    fix: 'true' # apply auto-fixes (default: false -- check only)
+    paths: | # restrict scan to these paths (one per line)
       src/
       docs/
-    ignore: |                 # exclude these paths (one per line)
+    ignore: | # exclude these paths (one per line)
       vendor/
       dist/
-    tool-timeout: 10m         # fail a single stuck tool instead of hanging the job
+    tool-timeout: 10m # fail a single stuck tool instead of hanging the job
     summary-github-step: 'true' # append Markdown summary to the GitHub step summary
     summary-file: 'pedant-summary.md' # also write the summary to a file
 ```
@@ -31,12 +31,12 @@ The action always runs all applicable tools. When `fix: 'true'`, the caller is r
 
 ### Action Outputs
 
-| Output             | Description                                            |
-| ------------------ | ------------------------------------------------------ |
-| `status`           | `pass`, `fail`, or `error`                             |
-| `total-findings`   | Total number of findings across all tools              |
-| `files-discovered` | Number of files discovered and checked                 |
-| `tools-run`        | Number of tools that executed (not skipped)            |
+| Output             | Description                                                  |
+| ------------------ | ------------------------------------------------------------ |
+| `status`           | `pass`, `fail`, or `error`                                   |
+| `total-findings`   | Total number of findings across all tools                    |
+| `files-discovered` | Number of files discovered and checked                       |
+| `tools-run`        | Number of tools that executed (not skipped)                  |
 | `tools-skipped`    | Number of tools skipped (no matching files or condition met) |
 
 Use outputs to drive downstream steps:
@@ -100,17 +100,17 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 
 ## Options
 
-| Flag                    | Description                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------ |
-| `--fix`                 | Apply auto-fixes in-place; check-only by default                                     |
-| `--path <path>`         | Restrict scan to this path or file (repeatable)                                      |
-| `--ignore <path>`       | Exclude this path or file from scan (repeatable)                                     |
-| `--tool-timeout <dur>`  | Maximum wall-clock duration for one tool, e.g. `30s`, `5m`, or `1h`                  |
-| `--pretty`              | Pretty-print JSON output                                                             |
-| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                        |
-| `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                                   |
-| `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout                      |
-| `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout        |
+| Flag                    | Description                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `--fix`                 | Apply auto-fixes in-place; check-only by default                              |
+| `--path <path>`         | Restrict scan to this path or file (repeatable)                               |
+| `--ignore <path>`       | Exclude this path or file from scan (repeatable)                              |
+| `--tool-timeout <dur>`  | Maximum wall-clock duration for one tool, e.g. `30s`, `5m`, or `1h`           |
+| `--pretty`              | Pretty-print JSON output                                                      |
+| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                 |
+| `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                            |
+| `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout               |
+| `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout |
 
 Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
 `public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
@@ -147,9 +147,7 @@ Progress is written to **stderr**. By default, JSON is written to **stdout**:
       ]
     }
   ],
-  "workspace_configs": [
-    {"tool": "shellcheck", "config": ".shellcheckrc"}
-  ]
+  "workspace_configs": [{ "tool": "shellcheck", "config": ".shellcheckrc" }]
 }
 ```
 

@@ -140,7 +140,7 @@ func TestValidateSummaryOptions(t *testing.T) {
 }
 
 func TestEmitSummaryMarkdownStdout(t *testing.T) {
-	// Captures os.Stdout — must not run in parallel.
+	// Captures os.Stdout -- must not run in parallel.
 	old := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -225,7 +225,7 @@ func TestRenderMarkdownSummaryToolCounts(t *testing.T) {
 }
 
 func TestEmitOutputJSONStillEmittedWithSummaryFile(t *testing.T) {
-	// Captures os.Stdout — must not run in parallel.
+	// Captures os.Stdout -- must not run in parallel.
 	old := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {

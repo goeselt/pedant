@@ -207,7 +207,7 @@ func tableText(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// htmlCodeText prepares s for use inside a <code>…</code> HTML element,
+// htmlCodeText prepares s for use inside a <code>...</code> HTML element,
 // including inside GFM table cells where a bare | would split a column.
 func htmlCodeText(s string) string {
 	s = strings.ReplaceAll(s, "\r", " ")

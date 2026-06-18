@@ -117,7 +117,7 @@ func TestEditorconfigArgsForceGCCFormat(t *testing.T) {
 func TestWorkspaceConfigRelRejectsSymlinks(t *testing.T) {
 	t.Parallel()
 
-	// Symlink pointing to a valid target — must be rejected.
+	// Symlink pointing to a valid target -- must be rejected.
 	dir := t.TempDir()
 	target := filepath.Join(t.TempDir(), "real.cfg")
 	if err := os.WriteFile(target, []byte(""), 0o644); err != nil {

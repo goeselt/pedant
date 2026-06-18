@@ -2,55 +2,54 @@
 
 ## How It Works
 
-Pedant runs in five sequential phases. Reading this once is enough to orient
-yourself in the codebase.
+Pedant runs in five sequential phases. Reading this once is enough to orient yourself in the codebase.
 
 ```
-1. Discovery       git ls-files  →  discover.Files()
-                                     └─ rejects pathspec-magic injection
-                                     └─ deduplicates, skips deleted files
+1. Discovery       git ls-files  -->  discover.Files()
+                                     +- rejects pathspec-magic injection
+                                     +- deduplicates, skips deleted files
 
 2. Filtering       pathignore.Filter()
-                                     └─ removes node_modules/, vendor/, dist/, …
-                                     └─ emits warnings for explicit --path hits inside those dirs
+                                     +- removes node_modules/, vendor/, dist/, ...
+                                     +- emits warnings for explicit --path hits inside those dirs
 
 3. Classification  runner.ForTools()
-                                     └─ iterates runner.Registry in order
-                                     └─ each ToolDef.Globs selects matching files
-                                     └─ tools with zero matches are silently skipped
+                                     +- iterates runner.Registry in order
+                                     +- each ToolDef.Globs selects matching files
+                                     +- tools with zero matches are silently skipped
 
 4. Execution       runner.Run()  ×N  (one per tool with matching files)
-                                     └─ optional fix pass (silent), then check pass
-                                     └─ arg batching when total path length > 200 KB
-                                     └─ per-tool timeout prevents stuck linters
-                                     └─ logs info line if workspace config is used
+                                     +- optional fix pass (silent), then check pass
+                                     +- arg batching when total path length > 200 KB
+                                     +- per-tool timeout prevents stuck linters
+                                     +- logs info line if workspace config is used
 
-5. Output          aggregate()   →   JSON on stdout  (always, unless --summary-markdown)
-                                 →   Markdown        (--summary-markdown / --summary-file /
+5. Output          aggregate()   -->   JSON on stdout  (always, unless --summary-markdown)
+                                 -->   Markdown        (--summary-markdown / --summary-file /
                                                        --summary-github-step)
-                                 →   GITHUB_OUTPUT   (action outputs written automatically)
+                                 -->   GITHUB_OUTPUT   (action outputs written automatically)
 ```
 
 ## Design
 
-| File                        | Responsibility                                                                                    |
-| --------------------------- | ------------------------------------------------------------------------------------------------- |
-| `cmd/pedant/main.go`        | CLI entry point: flag parsing, orchestration, JSON output, exit codes.                            |
-| `cmd/pedant/summary.go`     | Markdown rendering, `--summary-*` output, `GITHUB_OUTPUT` writer.                                 |
-| `internal/discover/`        | File discovery via `git ls-files`; pathspec-magic rejection for `--path` and `--ignore` values.   |
-| `internal/pathignore/`      | Default-ignored directory list, filter, and warning generation.                                   |
-| `internal/runner/runner.go` | Tool orchestration: subprocess execution, fix+check cycle, arg batching, progress logging.        |
-| `internal/runner/tools.go`  | Tool registry: one `ToolDef` per supported linter/formatter, including config detection.          |
+| File                          | Responsibility                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| `cmd/pedant/main.go`          | CLI entry point: flag parsing, orchestration, JSON output, exit codes.                          |
+| `cmd/pedant/summary.go`       | Markdown rendering, `--summary-*` output, `GITHUB_OUTPUT` writer.                               |
+| `internal/discover/`          | File discovery via `git ls-files`; pathspec-magic rejection for `--path` and `--ignore` values. |
+| `internal/pathignore/`        | Default-ignored directory list, filter, and warning generation.                                 |
+| `internal/runner/runner.go`   | Tool orchestration: subprocess execution, fix+check cycle, arg batching, progress logging.      |
+| `internal/runner/tools.go`    | Tool registry: one `ToolDef` per supported linter/formatter, including config detection.        |
 | `internal/runner/classify.go` | File-to-tool assignment: glob matching, `ForTools()`.                                           |
-| `entrypoint.sh`             | Docker entrypoint: translates `INPUT_*` env vars from Actions into CLI flags.                     |
-| `Dockerfile`                | Multi-stage build: Go binary in stage 1, all lint tools installed in stage 2.                    |
-| `tools/node/`               | Locked npm dependency graph for Node.js-based lint tools used by the Docker image.               |
+| `entrypoint.sh`               | Docker entrypoint: translates `INPUT_*` env vars from Actions into CLI flags.                   |
+| `Dockerfile`                  | Multi-stage build: Go binary in stage 1, all lint tools installed in stage 2.                   |
+| `tools/node/`                 | Locked npm dependency graph for Node.js-based lint tools used by the Docker image.              |
 
 ## How to Add a New Tool
 
 Adding a tool requires touching exactly two files.
 
-### 1. `internal/runner/tools.go` — define the tool
+### 1. `internal/runner/tools.go` -- define the tool
 
 Copy an existing `ToolDef` as a starting point. Mandatory fields:
 
@@ -71,19 +70,19 @@ var myTool = ToolDef{
 
 Optional fields worth knowing:
 
-| Field                | When to use                                                               |
-| -------------------- | ------------------------------------------------------------------------- |
-| `Binary`             | Executable name differs from `Name`                                       |
-| `NoBatch`            | Tool does not accept explicit file args (e.g. `golangci-lint ./...`)      |
-| `Skip`               | Runtime condition that disqualifies the tool (e.g. no `go.mod` present)   |
-| `FindWorkspaceConfig`| Use `makeConfigFinder(candidates...)` to log which config file is in use  |
+| Field                 | When to use                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `Binary`              | Executable name differs from `Name`                                      |
+| `NoBatch`             | Tool does not accept explicit file args (e.g. `golangci-lint ./...`)     |
+| `Skip`                | Runtime condition that disqualifies the tool (e.g. no `go.mod` present)  |
+| `FindWorkspaceConfig` | Use `makeConfigFinder(candidates...)` to log which config file is in use |
 
-### 2. `internal/runner/tools.go` — add to `Registry`
+### 2. `internal/runner/tools.go` -- add to `Registry`
 
 ```go
 var Registry = []ToolDef{
     // ...
-    myTool,  // ← add here; order determines execution order
+    myTool,  // <-- add here; order determines execution order
 }
 ```
 
@@ -108,9 +107,8 @@ docker build -t pedant .
 
 ## Updating Node Tool Packages
 
-The Node.js-based tools used in the Docker image are locked under `tools/node/`.
-The Dockerfile installs them with `npm ci --ignore-scripts`, so `package.json`
-and `package-lock.json` must stay in sync.
+The Node.js-based tools used in the Docker image are locked under `tools/node/`. The Dockerfile installs them with
+`npm ci --ignore-scripts`, so `package.json` and `package-lock.json` must stay in sync.
 
 Update packages locally:
 
@@ -122,9 +120,8 @@ npm install --package-lock-only --ignore-scripts
 npm ci --ignore-scripts --omit=dev
 ```
 
-For grouped updates, prefer Dependabot PRs. They update `tools/node/package.json`
-and `tools/node/package-lock.json` together. If you edit `package.json`
-manually, run the lockfile sync command before committing:
+For grouped updates, prefer Dependabot PRs. They update `tools/node/package.json` and `tools/node/package-lock.json`
+together. If you edit `package.json` manually, run the lockfile sync command before committing:
 
 ```bash
 cd tools/node
@@ -134,17 +131,14 @@ git diff --exit-code package-lock.json
 
 Handle package warnings and vulnerabilities deliberately:
 
-- Deprecated package warning: upgrade the direct dependency that pulls it in.
-  If the deprecated package is transitive, upgrade the parent package or wait
-  for an upstream release.
-- Install or peer-dependency error: choose compatible package versions. Avoid
-  `--force` and `--legacy-peer-deps` unless the resulting behavior has been
-  reviewed and documented in the PR.
-- Vulnerability: run `npm audit --omit=dev`. Prefer normal package upgrades.
-  Treat `npm audit fix --force` as a last resort because it may downgrade tools
-  or apply breaking major changes.
-- After any package update, run `docker build -t pedant .` so the locked
-  Docker install path is tested, not only the local npm install path.
+- Deprecated package warning: upgrade the direct dependency that pulls it in. If the deprecated package is transitive,
+  upgrade the parent package or wait for an upstream release.
+- Install or peer-dependency error: choose compatible package versions. Avoid `--force` and `--legacy-peer-deps` unless
+  the resulting behavior has been reviewed and documented in the PR.
+- Vulnerability: run `npm audit --omit=dev`. Prefer normal package upgrades. Treat `npm audit fix --force` as a last
+  resort because it may downgrade tools or apply breaking major changes.
+- After any package update, run `docker build -t pedant .` so the locked Docker install path is tested, not only the
+  local npm install path.
 
 ## Local Verification
 
