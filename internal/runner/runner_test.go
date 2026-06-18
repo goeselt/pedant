@@ -3,8 +3,6 @@ package runner
 import (
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -116,69 +114,71 @@ func TestFilterEnvEmpty(t *testing.T) {
 
 // -- limitedBuffer --------------------------------------------------------------------
 
-func TestLimitedBufferWithinLimit(t *testing.T) {
+func TestLimitedBuffer(t *testing.T) {
 	t.Parallel()
 
-	var buf limitedBuffer
-	buf.limit = 10
-
-	n, err := buf.Write([]byte("hello"))
-	if err != nil || n != 5 {
-		t.Fatalf("Write() = %d, %v; want 5, nil", n, err)
-	}
-	if got := buf.String(); got != "hello" {
-		t.Errorf("content = %q, want %q", got, "hello")
-	}
-}
-
-func TestLimitedBufferTruncatesAtLimit(t *testing.T) {
-	t.Parallel()
-
-	var buf limitedBuffer
-	buf.limit = 4
-
-	n, err := buf.Write([]byte("hello world"))
-	if err != nil {
-		t.Fatalf("Write() error: %v", err)
-	}
-	// Returns the full input length so the writing process is not stalled.
-	if n != 11 {
-		t.Errorf("Write() = %d, want 11", n)
-	}
-	if got := buf.String(); got != "hell" {
-		t.Errorf("content = %q, want %q", got, "hell")
-	}
-}
-
-func TestLimitedBufferDiscardsWhenFull(t *testing.T) {
-	t.Parallel()
-
-	var buf limitedBuffer
-	buf.limit = 3
-
-	if _, err := buf.Write([]byte("abc")); err != nil {
-		t.Fatalf("Write() error: %v", err)
-	}
-	if _, err := buf.Write([]byte("extra content")); err != nil {
-		t.Fatalf("Write() error: %v", err)
+	tests := []struct {
+		name      string
+		limit     int
+		writes    []string
+		wantBytes string
+		// wantN is the number of bytes reported by the last Write call.
+		// Set to -1 to skip the check.
+		wantLastN int
+	}{
+		{
+			name:      "within limit",
+			limit:     10,
+			writes:    []string{"hello"},
+			wantBytes: "hello",
+			wantLastN: 5,
+		},
+		{
+			name:      "truncates at limit, reports full input length to avoid stalling subprocess",
+			limit:     4,
+			writes:    []string{"hello world"},
+			wantBytes: "hell",
+			wantLastN: 11, // full input length, not the truncated 4
+		},
+		{
+			name:      "discards subsequent writes when already full",
+			limit:     3,
+			writes:    []string{"abc", "extra content"},
+			wantBytes: "abc",
+			wantLastN: 13, // "extra content" reported as fully consumed
+		},
+		{
+			name:      "zero limit means unbounded",
+			limit:     0,
+			writes:    []string{strings.Repeat("x", 1000)},
+			wantBytes: strings.Repeat("x", 1000),
+			wantLastN: 1000,
+		},
 	}
 
-	if got := buf.String(); got != "abc" {
-		t.Errorf("content = %q, want %q", got, "abc")
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestLimitedBufferZeroLimitUnbounded(t *testing.T) {
-	t.Parallel()
+			var buf limitedBuffer
+			buf.limit = tc.limit
 
-	var buf limitedBuffer
-	// limit == 0 means no limit.
-	data := strings.Repeat("x", 1000)
-	if _, err := buf.Write([]byte(data)); err != nil {
-		t.Fatalf("Write() error: %v", err)
-	}
-	if got := len(buf.String()); got != 1000 {
-		t.Errorf("len(content) = %d, want 1000", got)
+			var lastN int
+			for _, w := range tc.writes {
+				n, err := buf.Write([]byte(w))
+				if err != nil {
+					t.Fatalf("Write(%q) error: %v", w, err)
+				}
+				lastN = n
+			}
+
+			if got := buf.String(); got != tc.wantBytes {
+				t.Errorf("content = %q, want %q", got, tc.wantBytes)
+			}
+			if tc.wantLastN >= 0 && lastN != tc.wantLastN {
+				t.Errorf("last Write() returned %d, want %d", lastN, tc.wantLastN)
+			}
+		})
 	}
 }
 
@@ -187,17 +187,14 @@ func TestLimitedBufferZeroLimitUnbounded(t *testing.T) {
 func TestRunWithTimeoutStopsHungTool(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	toolPath := filepath.Join(dir, "slow-tool")
-	if err := os.WriteFile(toolPath, []byte("#!/bin/sh\nsleep 5\n"), 0o755); err != nil {
-		t.Fatalf("write fake tool: %v", err)
-	}
-
+	// Use an existing system binary (/bin/sh) to avoid "text file busy" on
+	// newly written executables. The tool sleeps for 5 s; the test timeout
+	// fires at 25 ms, so the process must be killed well before it exits.
 	tool := ToolDef{
 		Name:   "slow-tool",
-		Binary: toolPath,
+		Binary: "/bin/sh",
 		Args: func(bool, string, []string) []string {
-			return nil
+			return []string{"-c", "sleep 5"}
 		},
 		Parse: func(string, string, int, string) ([]Finding, error) {
 			return nil, nil
@@ -205,7 +202,7 @@ func TestRunWithTimeoutStopsHungTool(t *testing.T) {
 	}
 
 	start := time.Now()
-	result := RunWithTimeout(context.Background(), tool, dir, false, []string{"x"}, io.Discard, 25*time.Millisecond)
+	result := RunWithTimeout(context.Background(), tool, t.TempDir(), false, []string{"x"}, io.Discard, 25*time.Millisecond)
 	elapsed := time.Since(start)
 
 	if result.Status != "error" {

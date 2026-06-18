@@ -259,6 +259,14 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 	}
 }
 
+// newToolCommand creates a subprocess in its own process group (Setpgid: true)
+// and replaces exec.Cmd's default Cancel with a SIGKILL to the entire process
+// group (-pgid). This matters because several linters (golangci-lint, Node.js
+// tools) spawn child processes of their own: killing only the parent would
+// leave those children running as orphans, leaking resources and potentially
+// keeping the workspace lock held after the timeout fires.
+// Passing -pgid to syscall.Kill is the idiomatic Linux approach for this; the
+// container is always Linux so there is no portability concern.
 func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
