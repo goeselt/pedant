@@ -35,7 +35,7 @@ jobs:
           private-key: ${{ secrets.RELEASE_APP_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0 # intent release needs full history to find the previous release tag
           token: ${{ steps.app.outputs.token }}
@@ -62,7 +62,7 @@ jobs:
 
       - name: Commit Version Bump
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/scribe@2dde3d76f0a8c6de2974c223b6dd562756fa872e # v1.1.0
+        uses: goeselt/scribe@b1f7a92ec86ef50d731050f59624a049854e031a # v1.1.1
         with:
           files: |
             tools/node/package.json
@@ -132,7 +132,7 @@ jobs:
 
       - name: Commit Pin
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/scribe@2dde3d76f0a8c6de2974c223b6dd562756fa872e # v1.1.0
+        uses: goeselt/scribe@b1f7a92ec86ef50d731050f59624a049854e031a # v1.1.1
         with:
           files: action.yml
           message: 'chore(pin): action.yml to v${{ steps.intent.outputs.next-version }}'
