@@ -106,12 +106,14 @@ jobs:
         if: steps.bumpkin.outputs.release-needed == 'true'
         env:
           VERSION: ${{ steps.bumpkin.outputs.next-version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           if ! printf '%s' "${VERSION}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             printf 'error: invalid version format: %s\n' "${VERSION}" >&2
             exit 1
           fi
-          sed -i "s|image: docker://ghcr.io/goeselt/pedant:.*|image: docker://ghcr.io/goeselt/pedant:${VERSION}|" action.yml
+          # Handles both the old tag-only format and the new tag@digest format.
+          sed -i "s|image: docker://ghcr.io/goeselt/pedant:.*|image: docker://ghcr.io/goeselt/pedant:${VERSION}@${DIGEST}|" action.yml
 
       - name: Commit Pin
         if: steps.bumpkin.outputs.release-needed == 'true'
