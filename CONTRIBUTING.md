@@ -106,6 +106,46 @@ go build ./...
 docker build -t pedant .
 ```
 
+## Updating Node Tool Packages
+
+The Node.js-based tools used in the Docker image are locked under `tools/node/`.
+The Dockerfile installs them with `npm ci --ignore-scripts`, so `package.json`
+and `package-lock.json` must stay in sync.
+
+Update packages locally:
+
+```bash
+cd tools/node
+npm outdated
+npm install --save-exact <package>@<version>
+npm install --package-lock-only --ignore-scripts
+npm ci --ignore-scripts --omit=dev
+```
+
+For grouped updates, prefer Dependabot PRs. They update `tools/node/package.json`
+and `tools/node/package-lock.json` together. If you edit `package.json`
+manually, run the lockfile sync command before committing:
+
+```bash
+cd tools/node
+npm install --package-lock-only --ignore-scripts
+git diff --exit-code package-lock.json
+```
+
+Handle package warnings and vulnerabilities deliberately:
+
+- Deprecated package warning: upgrade the direct dependency that pulls it in.
+  If the deprecated package is transitive, upgrade the parent package or wait
+  for an upstream release.
+- Install or peer-dependency error: choose compatible package versions. Avoid
+  `--force` and `--legacy-peer-deps` unless the resulting behavior has been
+  reviewed and documented in the PR.
+- Vulnerability: run `npm audit --omit=dev`. Prefer normal package upgrades.
+  Treat `npm audit fix --force` as a last resort because it may downgrade tools
+  or apply breaking major changes.
+- After any package update, run `docker build -t pedant .` so the locked
+  Docker install path is tested, not only the local npm install path.
+
 ## Local Verification
 
 Unit tests:

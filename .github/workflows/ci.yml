@@ -40,6 +40,17 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Set Up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
+
+      - name: Verify Node Toolchain Lockfile Sync
+        working-directory: tools/node
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
+
       - name: Format Check
         run: |
           unformatted=$(gofmt -l .)
