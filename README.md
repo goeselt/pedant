@@ -22,6 +22,7 @@ With options:
     ignore: |                 # exclude these paths (one per line)
       vendor/
       dist/
+    tool-timeout: 10m         # fail a single stuck tool instead of hanging the job
     summary-github-step: 'true' # append Markdown summary to the GitHub step summary
     summary-file: 'pedant-summary.md' # also write the summary to a file
 ```
@@ -104,6 +105,7 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 | `--fix`                 | Apply auto-fixes in-place; check-only by default                                     |
 | `--path <path>`         | Restrict scan to this path or file (repeatable)                                      |
 | `--ignore <path>`       | Exclude this path or file from scan (repeatable)                                     |
+| `--tool-timeout <dur>`  | Maximum wall-clock duration for one tool, e.g. `30s`, `5m`, or `1h`                  |
 | `--pretty`              | Pretty-print JSON output                                                             |
 | `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                        |
 | `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                                   |

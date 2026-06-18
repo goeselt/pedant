@@ -5,7 +5,7 @@
 
 # ---- Stage 1: build the Go orchestrator binary ----
 # hadolint ignore=DL3029
-FROM --platform=linux/amd64 golang:1.24-alpine AS builder
+FROM --platform=linux/amd64 golang:1.24-alpine@sha256:8bee1901f1e530bfb4a7850aa7a479d17ae3a18beb6e09064ed54cfd245b7191 AS builder
 
 WORKDIR /build
 COPY go.mod ./
@@ -15,7 +15,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o pedant ./cmd/pedant
 
 # ---- Stage 2: final image ----
 # hadolint ignore=DL3029
-FROM --platform=linux/amd64 alpine:3.21
+FROM --platform=linux/amd64 alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 SHELL ["/bin/ash", "-o", "pipefail", "-c"]
 
@@ -36,54 +36,19 @@ ENV PATH=/usr/local/go/bin:${PATH}
 
 # -- Node.js tools: prettier, eslint, markdownlint-cli2, textlint --
 
-# renovate: datasource=npm depName=prettier
-ARG PRETTIER_VERSION=3.8.3
-# renovate: datasource=npm depName=eslint
-ARG ESLINT_VERSION=10.4.1
-# renovate: datasource=npm depName=eslint-plugin-unicorn
-ARG UNICORN_VERSION=64.0.0
-# renovate: datasource=npm depName=typescript-eslint
-ARG TYPESCRIPT_ESLINT_VERSION=8.60.1
-# renovate: datasource=npm depName=typescript
-ARG TYPESCRIPT_VERSION=6.0.3
-# renovate: datasource=npm depName=markdownlint-cli2
-ARG MARKDOWNLINT_VERSION=0.22.1
-# renovate: datasource=npm depName=textlint
-ARG TEXTLINT_VERSION=15.7.1
-# renovate: datasource=npm depName=stylelint
-ARG STYLELINT_VERSION=16.14.0
-# renovate: datasource=npm depName=stylelint-config-standard
-ARG STYLELINT_CONFIG_STANDARD_VERSION=36.0.1
-# renovate: datasource=npm depName=jiti
-ARG JITI_VERSION=2.7.0
-# renovate: datasource=npm depName=@eslint/js
-ARG ESLINT_JS_VERSION=10.0.1
+COPY tools/node/package.json tools/node/package-lock.json /opt/pedant-node-tools/
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache nodejs npm \
-    && npm install -g \
-        "prettier@${PRETTIER_VERSION}" \
-        "eslint@${ESLINT_VERSION}" \
-        "jiti@${JITI_VERSION}" \
-        "eslint-plugin-unicorn@${UNICORN_VERSION}" \
-        "@eslint/js@${ESLINT_JS_VERSION}" \
-        "typescript-eslint@${TYPESCRIPT_ESLINT_VERSION}" \
-        "typescript@${TYPESCRIPT_VERSION}" \
-        "globals@17.6.0" \
-        "markdownlint-cli2@${MARKDOWNLINT_VERSION}" \
-        "textlint@${TEXTLINT_VERSION}" \
-        "textlint-filter-rule-comments@1.3.0" \
-        "textlint-rule-terminology@5.2.16" \
-        "stylelint@${STYLELINT_VERSION}" \
-        "stylelint-config-standard@${STYLELINT_CONFIG_STANDARD_VERSION}" \
+    && npm ci --prefix /opt/pedant-node-tools --omit=dev --ignore-scripts \
     && npm cache clean --force \
     && apk del npm \
     && rm -rf /tmp/* /root/.npm \
-    && prettier --version \
-    && eslint --version \
-    && markdownlint-cli2 --version \
-    && textlint --version \
-    && stylelint --version
+    && /opt/pedant-node-tools/node_modules/.bin/prettier --version \
+    && /opt/pedant-node-tools/node_modules/.bin/eslint --version \
+    && /opt/pedant-node-tools/node_modules/.bin/markdownlint-cli2 --version \
+    && /opt/pedant-node-tools/node_modules/.bin/textlint --version \
+    && /opt/pedant-node-tools/node_modules/.bin/stylelint --version
 
 # -- Python linter/formatter --
 
@@ -215,8 +180,8 @@ RUN apk add --no-cache bash && chmod 755 /usr/local/bin/entrypoint.sh
 # - .editorconfig at / so ec finds it via upward traversal for repos without their own
 # - node_modules symlink so the bundled eslint config can resolve its npm imports
 RUN ln -s /etc/pedant/editorconfig/.editorconfig /.editorconfig \
-    && ln -s /usr/local/lib/node_modules /etc/pedant/eslint/node_modules \
-    && ln -s /usr/local/lib/node_modules /etc/pedant/stylelint/node_modules
+    && ln -s /opt/pedant-node-tools/node_modules /etc/pedant/eslint/node_modules \
+    && ln -s /opt/pedant-node-tools/node_modules /etc/pedant/stylelint/node_modules
 
 # Intentionally running as root: pedant operates on a bind-mounted workspace
 # whose files are owned by the host UID. A non-root user would need UID
@@ -230,6 +195,9 @@ ENV DO_NOT_TRACK=1 \
     DISABLE_OPENCOLLECTIVE=1 \
     NEXT_TELEMETRY_DISABLED=1 \
     GATSBY_TELEMETRY_DISABLED=1
+
+ENV NODE_PATH=/opt/pedant-node-tools/node_modules
+ENV PATH=/opt/pedant-node-tools/node_modules/.bin:${PATH}
 
 WORKDIR /work
 

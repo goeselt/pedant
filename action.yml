@@ -20,6 +20,10 @@ inputs:
     description: >
       Exclude these workspace-relative paths or files from the scan, one per line. Omit to exclude nothing.
     default: ''
+  tool-timeout:
+    description: >
+      Maximum wall-clock duration for one tool invocation group, for example 30s, 5m, or 1h.
+    default: 10m
   summary-markdown:
     description: >
       Write a Markdown summary to stdout. Set to 'true' to enable.

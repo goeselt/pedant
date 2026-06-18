@@ -22,6 +22,7 @@ yourself in the codebase.
 4. Execution       runner.Run()  ×N  (one per tool with matching files)
                                      └─ optional fix pass (silent), then check pass
                                      └─ arg batching when total path length > 200 KB
+                                     └─ per-tool timeout prevents stuck linters
                                      └─ logs info line if workspace config is used
 
 5. Output          aggregate()   →   JSON on stdout  (always, unless --summary-markdown)
@@ -43,6 +44,7 @@ yourself in the codebase.
 | `internal/runner/classify.go` | File-to-tool assignment: glob matching, `ForTools()`.                                           |
 | `entrypoint.sh`             | Docker entrypoint: translates `INPUT_*` env vars from Actions into CLI flags.                     |
 | `Dockerfile`                | Multi-stage build: Go binary in stage 1, all lint tools installed in stage 2.                    |
+| `tools/node/`               | Locked npm dependency graph for Node.js-based lint tools used by the Docker image.               |
 
 ## How to Add a New Tool
 

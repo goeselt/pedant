@@ -19,30 +19,47 @@ input() {
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     args=()
+    fix=$(input FIX)
+    paths=$(input PATHS)
+    ignore=$(input IGNORE)
+    tool_timeout=$(input TOOL_TIMEOUT)
+    summary_markdown=$(input SUMMARY_MARKDOWN)
+    summary_file=$(input SUMMARY_FILE)
+    summary_github_step=$(input SUMMARY_GITHUB_STEP)
 
-    [[ "$(input FIX)" == "true" ]] && args+=(--fix)
+    if [[ "$fix" == "true" ]]; then
+        args+=(--fix)
+    fi
 
-    if [[ -n "$(input PATHS)" ]]; then
+    if [[ -n "$paths" ]]; then
         while IFS= read -r p; do
             [[ -z "$p" ]] && continue
             args+=(--path "$p")
-        done <<<"$(input PATHS)"
+        done <<<"$paths"
     fi
 
-    if [[ -n "$(input IGNORE)" ]]; then
+    if [[ -n "$ignore" ]]; then
         while IFS= read -r ig; do
             [[ -z "$ig" ]] && continue
             args+=(--ignore "$ig")
-        done <<<"$(input IGNORE)"
+        done <<<"$ignore"
     fi
 
-    [[ "$(input SUMMARY_MARKDOWN)" == "true" ]] && args+=(--summary-markdown)
-
-    if [[ -n "$(input SUMMARY_FILE)" ]]; then
-        args+=(--summary-file "$(input SUMMARY_FILE)")
+    if [[ -n "$tool_timeout" ]]; then
+        args+=(--tool-timeout "$tool_timeout")
     fi
 
-    [[ "$(input SUMMARY_GITHUB_STEP)" == "true" ]] && args+=(--summary-github-step)
+    if [[ "$summary_markdown" == "true" ]]; then
+        args+=(--summary-markdown)
+    fi
+
+    if [[ -n "$summary_file" ]]; then
+        args+=(--summary-file "$summary_file")
+    fi
+
+    if [[ "$summary_github_step" == "true" ]]; then
+        args+=(--summary-github-step)
+    fi
 
     exec pedant "${args[@]}"
 else

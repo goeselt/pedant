@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/goeselt/pedant/internal/discover"
 	"github.com/goeselt/pedant/internal/pathignore"
@@ -37,6 +38,7 @@ func main() {
 		summaryMarkdown   bool
 		summaryGithubStep bool
 		summaryFile       string
+		toolTimeout       time.Duration
 		pathList          multiFlag
 		ignList           multiFlag
 	)
@@ -48,6 +50,7 @@ func main() {
 	fs.BoolVar(&summaryMarkdown, "summary-markdown", false, "Write a Markdown summary to stdout instead of JSON")
 	fs.StringVar(&summaryFile, "summary-file", "", "Write the summary to this file; JSON still emitted on stdout")
 	fs.BoolVar(&summaryGithubStep, "summary-github-step", false, "Append the summary to $GITHUB_STEP_SUMMARY; JSON still emitted on stdout")
+	fs.DurationVar(&toolTimeout, "tool-timeout", runner.DefaultToolTimeout, "Maximum wall-clock duration for one tool, e.g. 30s, 5m, 1h")
 	fs.Var(&pathList, "path", "Restrict scan to this path or file (repeatable)")
 	fs.Var(&ignList, "ignore", "Exclude this path or file from scan (repeatable)")
 
@@ -83,6 +86,9 @@ func main() {
 
 	if err := validateSummaryOptions(summaryGithubStep); err != nil {
 		fatal("%v", err)
+	}
+	if toolTimeout <= 0 {
+		fatal("--tool-timeout must be greater than zero")
 	}
 
 	workspace := "."
@@ -138,7 +144,7 @@ func main() {
 	anyError := false
 
 	for _, a := range runner.ForTools(files) {
-		result := runner.Run(ctx, a.Def, absWorkspace, fix, a.Files, log)
+		result := runner.RunWithTimeout(ctx, a.Def, absWorkspace, fix, a.Files, log, toolTimeout)
 		switch result.Status {
 		case "fail":
 			anyFail = true

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -73,11 +74,11 @@ const maxOutputBytes = 50 * 1024 * 1024 // 50 MB
 // diagnostic text to stderr (e.g. after reading a symlinked file as config).
 const maxErrorLen = 4000
 
-// toolTimeout is the maximum wall-clock duration allowed for a single tool
+// DefaultToolTimeout is the maximum wall-clock duration allowed for a single tool
 // (across all its batches). Tools that exceed this limit are killed by the
 // OS and reported as errors, preventing a deadlocked or pathologically slow
 // linter from stalling the pipeline indefinitely.
-const toolTimeout = 10 * time.Minute
+const DefaultToolTimeout = 10 * time.Minute
 
 // -- Environment filtering ------------------------------------------------------------
 
@@ -138,7 +139,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 		}
 	}
 	_, err := b.Buffer.Write(p)
-	return full, err // always report full len — a short-write would stall the subprocess
+	return full, err // always report full len; a short-write would stall the subprocess
 }
 
 // -- Core execution -------------------------------------------------------------------
@@ -168,7 +169,12 @@ func splitBatches(files []string) [][]string {
 	return batches
 }
 
-// Run executes a single tool and writes human-readable progress to log.
+// Run executes a single tool with the default timeout and writes human-readable progress to log.
+func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []string, log io.Writer) Result {
+	return RunWithTimeout(ctx, def, workspace, fix, files, log, DefaultToolTimeout)
+}
+
+// RunWithTimeout executes a single tool and writes human-readable progress to log.
 // In fix mode, fixable tools run a silent fix pass followed by a check pass;
 // only what could not be fixed is reported. Non-fixable tools always run check-only.
 //
@@ -176,7 +182,7 @@ func splitBatches(files []string) [][]string {
 // and the tool is invoked once per batch.
 // Findings from all batches are merged.
 // Tools that do not accept an explicit file list (NoBatch: true) are always invoked once.
-func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []string, log io.Writer) Result {
+func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool, files []string, log io.Writer, timeout time.Duration) Result {
 	if def.Skip != nil && def.Skip(workspace) {
 		reason := def.Reason
 		if reason == "" {
@@ -211,14 +217,21 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 	// workspace-controlled config files cannot read them.
 	env := filterEnv(os.Environ())
 
-	// Cap per-tool wall-clock time so a deadlocked or pathologically slow linter
-	// cannot stall the pipeline indefinitely.
-	toolCtx, cancel := context.WithTimeout(ctx, toolTimeout)
+	toolCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		// Cap per-tool wall-clock time so a deadlocked or pathologically slow linter
+		// cannot stall the pipeline indefinitely.
+		toolCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
 	defer cancel()
 
 	var allFindings []Finding
 	for _, batch := range batches {
 		findings, errMsg := invokeBatch(toolCtx, def, binary, workspace, fix, batch, log, env)
+		if errors.Is(toolCtx.Err(), context.DeadlineExceeded) {
+			errMsg = fmt.Sprintf("timed out after %s", timeout)
+		}
 		if errMsg != "" {
 			if len(errMsg) > maxErrorLen {
 				errMsg = errMsg[:maxErrorLen] + " [truncated]"
@@ -246,17 +259,35 @@ func Run(ctx context.Context, def ToolDef, workspace string, fix bool, files []s
 	}
 }
 
+func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
+		return nil
+	}
+	return cmd
+}
+
 // invokeBatch runs one fix+check cycle for a single batch of files.
 // Returns (findings, errMsg); errMsg != "" is a hard error that aborts batching.
 func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer, env []string) ([]Finding, string) {
 	if fix && def.CanFix {
-		fixCmd := exec.CommandContext(ctx, binary, def.Args(true, workspace, files)...)
+		fixCmd := newToolCommand(ctx, binary, def.Args(true, workspace, files)...)
 		fixCmd.Dir = workspace
 		fixCmd.Env = env
 		var fixStderr limitedBuffer
 		fixStderr.limit = maxOutputBytes
 		fixCmd.Stderr = &fixStderr
 		if err := fixCmd.Run(); err != nil {
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, "timed out"
+			}
 			var exitErr *exec.ExitError
 			if !errors.As(err, &exitErr) {
 				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass: %v\n", def.Name, err)
@@ -267,7 +298,7 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 	}
 
 	// Check pass -- always runs; reports what remains (or all findings in check-only mode).
-	cmd := exec.CommandContext(ctx, binary, def.Args(false, workspace, files)...)
+	cmd := newToolCommand(ctx, binary, def.Args(false, workspace, files)...)
 	cmd.Dir = workspace
 	cmd.Env = env
 
@@ -278,6 +309,9 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 	cmd.Stderr = &stderr
 
 	runErr := cmd.Run()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, "timed out"
+	}
 
 	exitCode := 0
 	if runErr != nil {

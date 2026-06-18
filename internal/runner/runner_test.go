@@ -1,8 +1,13 @@
 package runner
 
 import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // -- filterEnv / isSensitiveEnvVar ----------------------------------------------------
@@ -151,8 +156,12 @@ func TestLimitedBufferDiscardsWhenFull(t *testing.T) {
 	var buf limitedBuffer
 	buf.limit = 3
 
-	buf.Write([]byte("abc"))           //nolint:errcheck
-	buf.Write([]byte("extra content")) //nolint:errcheck
+	if _, err := buf.Write([]byte("abc")); err != nil {
+		t.Fatalf("Write() error: %v", err)
+	}
+	if _, err := buf.Write([]byte("extra content")); err != nil {
+		t.Fatalf("Write() error: %v", err)
+	}
 
 	if got := buf.String(); got != "abc" {
 		t.Errorf("content = %q, want %q", got, "abc")
@@ -165,8 +174,47 @@ func TestLimitedBufferZeroLimitUnbounded(t *testing.T) {
 	var buf limitedBuffer
 	// limit == 0 means no limit.
 	data := strings.Repeat("x", 1000)
-	buf.Write([]byte(data)) //nolint:errcheck
+	if _, err := buf.Write([]byte(data)); err != nil {
+		t.Fatalf("Write() error: %v", err)
+	}
 	if got := len(buf.String()); got != 1000 {
 		t.Errorf("len(content) = %d, want 1000", got)
+	}
+}
+
+// -- tool timeout --------------------------------------------------------------------
+
+func TestRunWithTimeoutStopsHungTool(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	toolPath := filepath.Join(dir, "slow-tool")
+	if err := os.WriteFile(toolPath, []byte("#!/bin/sh\nsleep 5\n"), 0o755); err != nil {
+		t.Fatalf("write fake tool: %v", err)
+	}
+
+	tool := ToolDef{
+		Name:   "slow-tool",
+		Binary: toolPath,
+		Args: func(bool, string, []string) []string {
+			return nil
+		},
+		Parse: func(string, string, int, string) ([]Finding, error) {
+			return nil, nil
+		},
+	}
+
+	start := time.Now()
+	result := RunWithTimeout(context.Background(), tool, dir, false, []string{"x"}, io.Discard, 25*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if result.Status != "error" {
+		t.Fatalf("Status = %q, want error", result.Status)
+	}
+	if !strings.Contains(result.Error, "timed out after 25ms") {
+		t.Fatalf("Error = %q, want timeout message", result.Error)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("timeout took %s, want under 1s", elapsed)
 	}
 }
