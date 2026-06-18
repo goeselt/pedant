@@ -1,5 +1,31 @@
 {
+  "files_discovered": 1,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["markdownlint", "textlint"]
+  "tools": [
+    {
+      "files": [
+        "bad.md"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "markdownlint",
+      "rules": [
+        "MD041"
+      ],
+      "status": "fail"
+    },
+    {
+      "files": [
+        "bad.md"
+      ],
+      "finding_count": 2,
+      "has_error": false,
+      "name": "textlint",
+      "rules": [
+        "terminology"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 3
 }

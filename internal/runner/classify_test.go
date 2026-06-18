@@ -1,4 +1,4 @@
-package classify
+package runner
 
 import (
 	"testing"
@@ -30,7 +30,6 @@ func TestMatchGlob(t *testing.T) {
 		{".github/workflows/*.yml", ".github/workflows/ci.yaml", false},
 		{".github/workflows/*.yml", "other/ci.yml", false},
 		{".github/workflows/*.yaml", ".github/workflows/deploy.yaml", true},
-		// all-files (empty globs handled separately, not tested here)
 	}
 
 	for _, tt := range tests {
@@ -60,7 +59,7 @@ func TestForTools(t *testing.T) {
 
 	byTool := make(map[string][]string)
 	for _, a := range assignments {
-		byTool[a.Tool] = a.Files
+		byTool[a.Def.Name] = a.Files
 	}
 
 	// editorconfig gets all files

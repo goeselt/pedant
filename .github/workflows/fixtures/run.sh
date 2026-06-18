@@ -3,20 +3,31 @@
 set -euo pipefail
 
 # Each scenario directory under bundled/, workspace/ or clean/ contains a set
-# of fixture files plus expected.json. expected.json is a compact behavioural
-# spec, NOT the full pedant output:
+# of fixture files plus expected.json. expected.json is a behavioural spec,
+# NOT the full pedant output:
 #
 #   {
 #     "status": "pass" | "fail",
-#     "tools_failing": ["<sorted tool names>"],
-#     "tools_errored": ["<sorted tool names>"]
+#     "files_discovered": 1,
+#     "total_findings": 1,
+#     "tools": [
+#       {
+#         "name": "<tool>",
+#         "status": "fail" | "error",
+#         "finding_count": 1,
+#         "files": ["<sorted file paths>"],
+#         "rules": ["<sorted rule ids>"],
+#         "has_error": false
+#       }
+#     ]
 #   }
 #
 # The runner copies the scenario into a temporary git workspace (without
-# expected.json), runs pedant --nofix --pretty, projects the JSON output down
-# to the same compact shape, and diffs the two. Exact rule codes, line numbers
-# and tool messages are deliberately not asserted -- those are tool concerns
-# and are covered by the unit tests in internal/runner/parse_test.go.
+# expected.json), runs pedant --pretty, projects the JSON output down
+# to the same shape, and diffs the two. Exact line numbers and tool messages
+# are deliberately not asserted because they are more likely to change across
+# upstream tool versions. Finding counts, file paths, and rule IDs are asserted
+# because they catch parser regressions and output-format surprises.
 #
 # Usage:
 #   ./run.sh --all                 # diff every scenario
@@ -31,12 +42,22 @@ Script_Dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly Script_Dir
 readonly Image=${PEDANT_IMAGE:-pedant:latest}
 
-# Projection jq program: full pedant output -> compact behavioural spec.
+# Projection jq program: full pedant output -> stable behavioural spec.
 readonly Project_Jq='
 {
   status: .status,
-  tools_failing: ([.tools[]? | select(.status == "fail") | .name] | sort),
-  tools_errored: ([.tools[]? | select(.status == "error") | .name] | sort)
+  files_discovered: .files_discovered,
+  total_findings: .total_findings,
+  tools: ([
+    .tools[]? | {
+      name: .name,
+      status: .status,
+      finding_count: ((.findings // []) | length),
+      files: ([(.findings // [])[]?.file | select(. != null and . != "")] | unique | sort),
+      rules: ([(.findings // [])[]?.rule | select(. != null and . != "")] | unique | sort),
+      has_error: ((.error // "") != "")
+    }
+  ] | sort_by(.name))
 }
 '
 
@@ -53,7 +74,7 @@ EOF
 }
 
 # capture_actual <scenario_dir>: print the compact projection of pedant's
-# --nofix output for a fresh git workspace cloned from scenario_dir minus its
+# check-only output for a fresh git workspace cloned from scenario_dir minus its
 # expected.json.
 capture_actual() {
     local scenario_dir=$1
@@ -61,18 +82,23 @@ capture_actual() {
     tmp=$(mktemp -d)
     cp -a "$scenario_dir/." "$tmp/"
     rm -f "$tmp/expected.json"
+    init_workspace "$tmp"
+    local raw
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty 2>/dev/null || true)
+    rm -rf "$tmp"
+    printf '%s\n' "$raw" | jq -S "$Project_Jq"
+}
+
+init_workspace() {
+    local dir=$1
     (
-        cd "$tmp"
+        cd "$dir"
         git init -q
         git config user.email "e2e@pedant.local"
         git config user.name "pedant-e2e"
         git add -A
         git commit -qm init
     ) >/dev/null 2>&1
-    local raw
-    raw=$(docker run --rm -v "$tmp":/work "$Image" --nofix --pretty 2>/dev/null || true)
-    rm -rf "$tmp"
-    printf '%s\n' "$raw" | jq -S "$Project_Jq"
 }
 
 # run_one <scenario_rel> <update_flag>: diff or, with update_flag=1, overwrite expected.json.
@@ -137,7 +163,118 @@ run_all() {
     done < <(list_scenarios)
 
     printf '\n%d/%d passed\n' "$((count - fail))" "$count" >&2
-    [[ $fail -eq 0 ]]
+    [[ $fail -eq 0 ]] || return 1
+
+    if [[ $update -eq 0 ]]; then
+        run_option_smoke_tests
+    fi
+}
+
+run_option_smoke_tests() {
+    local tmp raw
+    tmp=$(mktemp -d)
+    mkdir -p "$tmp/docs" "$tmp/src"
+    printf 'No heading here.\n' >"$tmp/docs/bad.md"
+    printf 'var answer = 42\nif (answer == "42") console.log(answer)\n' >"$tmp/src/bad.js"
+    init_workspace "$tmp"
+
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty --path docs 2>/dev/null || true)
+    if ! printf '%s\n' "$raw" | jq -e '
+        .files_discovered == 1
+        and .status == "fail"
+        and ([.tools[]?.name] | sort) == ["markdownlint"]
+    ' >/dev/null; then
+        printf 'FAIL: option smoke -- --path did not restrict the run to docs/\n' >&2
+        printf '%s\n' "$raw" | jq -S '.' >&2 || printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --pretty --ignore docs/bad.md --ignore src/bad.js 2>/dev/null || true)
+    if ! printf '%s\n' "$raw" | jq -e '
+        .files_discovered == 0
+        and .status == "pass"
+        and .total_findings == 0
+        and (.tools | length) == 0
+    ' >/dev/null; then
+        printf 'FAIL: option smoke -- --ignore did not exclude selected files\n' >&2
+        printf '%s\n' "$raw" | jq -S '.' >&2 || printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    # GITHUB_STEP_SUMMARY must exist before pedant runs: O_CREATE is intentionally
+    # omitted from the writer so that pedant cannot create files at arbitrary paths.
+    touch "$tmp/step-summary.md"
+    raw=$(
+        docker run --rm \
+            -v "$tmp":/work \
+            -e GITHUB_STEP_SUMMARY=/work/step-summary.md \
+            "$Image" \
+            --pretty \
+            --ignore docs/bad.md \
+            --ignore src/bad.js \
+            --summary-file summary.md \
+            --summary-github-step \
+            2>/dev/null || true
+    )
+    # JSON is still emitted to stdout alongside --summary-file / --summary-github-step.
+    if ! printf '%s\n' "$raw" | jq -e '.status == "pass"' >/dev/null; then
+        printf 'FAIL: option smoke -- summary-file/summary-github-step: unexpected JSON output\n' >&2
+        printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    if [[ ! -s "$tmp/summary.md" || ! -s "$tmp/step-summary.md" ]]; then
+        printf 'FAIL: option smoke -- summary files were not written\n' >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    if ! cmp -s "$tmp/summary.md" "$tmp/step-summary.md"; then
+        printf 'FAIL: option smoke -- summary-file and GitHub step summary differ\n' >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    if ! grep -q '## Pedant Summary' "$tmp/summary.md"; then
+        printf 'FAIL: option smoke -- Markdown summary header missing\n' >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    # Action mode: entrypoint.sh reads INPUT_* env vars when GITHUB_ACTIONS=true.
+    touch "$tmp/action-step-summary.md"
+    raw=$(
+        docker run --rm \
+            -v "$tmp":/work \
+            -e GITHUB_ACTIONS=true \
+            -e GITHUB_STEP_SUMMARY=/work/action-step-summary.md \
+            -e INPUT_FIX=false \
+            -e INPUT_PATHS=docs \
+            -e INPUT_SUMMARY_MARKDOWN=true \
+            -e INPUT_SUMMARY_FILE=action-summary.md \
+            -e INPUT_SUMMARY_GITHUB_STEP=true \
+            "$Image" \
+            2>/dev/null || true
+    )
+    if ! grep -q '## Pedant Summary' <<<"$raw" || grep -q '"status"' <<<"$raw"; then
+        printf 'FAIL: option smoke -- action inputs did not produce Markdown stdout\n' >&2
+        printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    if [[ ! -s "$tmp/action-summary.md" || ! -s "$tmp/action-step-summary.md" ]]; then
+        printf 'FAIL: option smoke -- action summary files were not written\n' >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    if ! cmp -s "$tmp/action-summary.md" "$tmp/action-step-summary.md"; then
+        printf 'FAIL: option smoke -- action summary destinations differ\n' >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    rm -rf "$tmp"
+    printf 'PASS: option smoke\n'
 }
 
 main() {

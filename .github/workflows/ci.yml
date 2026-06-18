@@ -25,9 +25,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Validate Intent
-        uses: goeselt/intent@d168da88e1330163fb8943b119685d2af453fd8d # v1.0.2
+        uses: goeselt/intent@f6d867043c166cdbe5c9be0ee2fbee84f2065415 # v1.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-comment: true
 
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -39,6 +40,17 @@ jobs:
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
+
+      - name: Set Up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24'
+
+      - name: Verify Node Toolchain Lockfile Sync
+        working-directory: tools/node
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code package-lock.json
 
       - name: Format Check
         run: |

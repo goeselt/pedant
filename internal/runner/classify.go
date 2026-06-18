@@ -1,31 +1,30 @@
-// Package classify maps discovered files to the tools that should process them,
-// using the glob patterns declared on each runner.ToolDef.
-package classify
+package runner
 
 import (
 	"path/filepath"
 	"strings"
-
-	"github.com/goeselt/pedant/internal/runner"
 )
 
-// Assignment pairs a tool name with its matched files.
+// Assignment pairs a ToolDef with the files it should process.
 type Assignment struct {
-	Tool  string
+	Def   ToolDef
 	Files []string
 }
 
 // ForTools returns ordered tool assignments for the given file list.
+// Tools without matching files are omitted; their order follows Registry.
 func ForTools(files []string) []Assignment {
 	var result []Assignment
-	for _, t := range runner.Registry {
+	for _, t := range Registry {
 		matched := matchFiles(files, t.Globs)
 		if len(matched) > 0 {
-			result = append(result, Assignment{Tool: t.Name, Files: matched})
+			result = append(result, Assignment{Def: t, Files: matched})
 		}
 	}
 	return result
 }
+
+// -- Glob matching ------------------------------------------------------------------
 
 func matchFiles(files, globs []string) []string {
 	if len(globs) == 0 {
@@ -52,8 +51,9 @@ func matchesAny(file string, globs []string) bool {
 }
 
 // matchGlob matches a pattern against a file path.
-// Patterns without '/' are matched against the basename only.
-// Patterns with '/' are matched against every suffix of the path with the same segment count.
+// Patterns without '/' match against the basename only.
+// Patterns with '/' match against every suffix of the path with the same segment count,
+// so ".github/workflows/*.yml" matches at any depth.
 func matchGlob(pattern, file string) bool {
 	if !strings.Contains(pattern, "/") {
 		ok, _ := filepath.Match(pattern, filepath.Base(file))

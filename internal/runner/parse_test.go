@@ -180,6 +180,28 @@ func TestParseEditorconfig(t *testing.T) {
 	}
 }
 
+func TestParseEditorconfigGCCFormat(t *testing.T) {
+	t.Parallel()
+
+	output := "Makefile:2:0: error: Wrong indentation type(spaces instead of tabs)\n" +
+		"docs/readme.md:4:2: warning: Trailing whitespace found.\n" +
+		"\n" +
+		"2 errors found\n"
+	findings, err := parseEditorconfig(output, "", 1, "")
+	if err != nil {
+		t.Fatalf("parseEditorconfig: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("got %d findings, want 2: %v", len(findings), findings)
+	}
+	if findings[0].File != "Makefile" || findings[0].Line != 2 || findings[0].Level != "error" {
+		t.Errorf("findings[0] = %+v, want Makefile line 2 error", findings[0])
+	}
+	if findings[1].File != "docs/readme.md" || findings[1].Line != 4 || findings[1].Col != 2 || findings[1].Level != "warning" {
+		t.Errorf("findings[1] = %+v, want docs/readme.md line 4 col 2 warning", findings[1])
+	}
+}
+
 func TestParseActionlint(t *testing.T) {
 	t.Parallel()
 
@@ -309,6 +331,18 @@ func TestParseStylelint(t *testing.T) {
 	}
 }
 
+func TestParseStylelintTextStderrIsNotJSONError(t *testing.T) {
+	t.Parallel()
+
+	findings, err := parseStylelint("", "ConfigurationError: invalid option", 1, "/work")
+	if err != nil {
+		t.Fatalf("parseStylelint: got error %v, want runner to surface stderr", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("got %d findings, want 0", len(findings))
+	}
+}
+
 func TestParseTextlintJSON(t *testing.T) {
 	t.Parallel()
 
@@ -328,6 +362,70 @@ func TestParseTextlintJSON(t *testing.T) {
 	}
 	if findings[0].Rule != "terminology" {
 		t.Errorf("Rule = %q, want terminology", findings[0].Rule)
+	}
+}
+
+func TestJSONParsersAcceptStderrWhenItContainsJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		parse func(stdout, stderr string) ([]Finding, error)
+		json  string
+	}{
+		{
+			name:  "shellcheck",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseShellcheck(stdout, stderr, 1, "") },
+			json:  `[{"file":"script.sh","line":5,"column":3,"level":"error","code":2034,"message":"foo appears unused."}]`,
+		},
+		{
+			name:  "eslint",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseEslint(stdout, stderr, 1, "/work") },
+			json:  `[{"filePath":"/work/src/app.js","messages":[{"ruleId":"no-var","severity":2,"message":"Unexpected var.","line":3,"column":1}]}]`,
+		},
+		{
+			name:  "ruff",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseRuff(stdout, stderr, 1, "/work") },
+			json:  `[{"code":"F401","message":"os imported but unused","filename":"/work/src/main.py","location":{"row":1,"column":8}}]`,
+		},
+		{
+			name:  "plainify",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parsePlainify(stdout, stderr, 1, "") },
+			json:  `{"findings":[{"file":"docs/NOTES.md","line":4,"col":8,"message":"non-ASCII character U+2019"}]}`,
+		},
+		{
+			name:  "textlint",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseTextlintJSON(stdout, stderr, 1, "/work") },
+			json:  `[{"filePath":"/work/README.md","messages":[{"ruleId":"terminology","message":"Incorrect usage of Github, use GitHub instead.","line":2,"column":10}]}]`,
+		},
+		{
+			name:  "hadolint",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseHadolint(stdout, stderr, 1, "") },
+			json:  `[{"line":1,"column":1,"code":"DL3006","message":"Always tag the version.","file":"Dockerfile","level":"warning"}]`,
+		},
+		{
+			name:  "actionlint",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseActionlint(stdout, stderr, 1, "") },
+			json:  `[{"message":"unexpected key \"environment\"","filepath":".github/workflows/ci.yml","line":5,"column":3,"kind":"syntax-check"}]`,
+		},
+		{
+			name:  "golangci-lint",
+			parse: func(stdout, stderr string) ([]Finding, error) { return parseGolangciLint(stdout, stderr, 1, "/work") },
+			json:  `{"Issues":[{"FromLinter":"errcheck","Text":"Error return value is not checked","Pos":{"Filename":"/work/main.go","Line":12,"Column":3}}],"Report":{}}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			findings, err := tc.parse("", tc.json)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			if len(findings) != 1 {
+				t.Fatalf("got %d findings, want 1: %v", len(findings), findings)
+			}
+		})
 	}
 }
 
@@ -379,6 +477,18 @@ func TestParsePlainifyRuntimeError(t *testing.T) {
 	t.Parallel()
 
 	_, err := parsePlainify("", "open /work: permission denied", 2, "")
+	if err == nil {
+		t.Fatal("parsePlainify with exitCode 2: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("error %q does not contain expected message", err.Error())
+	}
+}
+
+func TestParsePlainifyRuntimeErrorUsesStdoutFallback(t *testing.T) {
+	t.Parallel()
+
+	_, err := parsePlainify("open /work: permission denied", "", 2, "")
 	if err == nil {
 		t.Fatal("parsePlainify with exitCode 2: want error, got nil")
 	}
@@ -504,5 +614,33 @@ func TestRunBatchedMergesFindings(t *testing.T) {
 	}
 	if len(result.Findings) != len(batches) {
 		t.Errorf("findings = %d, want %d (one per batch)", len(result.Findings), len(batches))
+	}
+}
+
+func TestRunSurfacesStdoutWhenNoFindingsParsed(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	fakeTool := ToolDef{
+		Name:   "fake",
+		Binary: "sh",
+		CanFix: false,
+		Args: func(_ bool, _ string, _ []string) []string {
+			return []string{"-c", "printf 'configuration is invalid'; exit 1"}
+		},
+		Parse: func(_, _ string, _ int, _ string) ([]Finding, error) {
+			return nil, nil
+		},
+	}
+
+	result := Run(context.Background(), fakeTool, dir, false, []string{"x"}, io.Discard)
+	if result.Status != "error" {
+		t.Fatalf("status = %q, want error", result.Status)
+	}
+	if !strings.Contains(result.Error, "configuration is invalid") {
+		t.Fatalf("error = %q, want stdout diagnostic", result.Error)
+	}
+	if strings.Contains(result.Error, "exited with code 1") {
+		t.Fatalf("error = %q, should not fall back to generic exit code", result.Error)
 	}
 }

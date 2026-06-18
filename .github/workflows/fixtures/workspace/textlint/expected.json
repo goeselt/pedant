@@ -1,5 +1,19 @@
 {
+  "files_discovered": 2,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["textlint"]
+  "tools": [
+    {
+      "files": [
+        "notes.md"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "textlint",
+      "rules": [
+        "terminology"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
 }

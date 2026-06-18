@@ -25,3 +25,15 @@ updates:
       all:
         patterns:
           - '*'
+
+  - package-ecosystem: npm
+    directory: /tools/node
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      all:
+        patterns:
+          - '*'

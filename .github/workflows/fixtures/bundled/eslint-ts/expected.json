@@ -1,5 +1,20 @@
 {
+  "files_discovered": 1,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["eslint"]
+  "tools": [
+    {
+      "files": [
+        "bad.ts"
+      ],
+      "finding_count": 2,
+      "has_error": false,
+      "name": "eslint",
+      "rules": [
+        "eqeqeq",
+        "no-var"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 2
 }

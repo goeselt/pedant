@@ -11,8 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/goeselt/pedant/internal/classify"
 	"github.com/goeselt/pedant/internal/discover"
 	"github.com/goeselt/pedant/internal/pathignore"
 	"github.com/goeselt/pedant/internal/runner"
@@ -27,35 +27,46 @@ func (f *multiFlag) String() string     { return strings.Join(*f, ",") }
 func (f *multiFlag) Set(v string) error { *f = append(*f, v); return nil }
 
 func main() {
+	// --- Flags -------------------------------------------------------------------
+
 	fs := flag.NewFlagSet(appName, flag.ExitOnError)
 
 	var (
-		nofix    bool
-		pretty   bool
-		quiet    bool
-		pathList multiFlag
-		ignList  multiFlag
+		fix               bool
+		pretty            bool
+		quiet             bool
+		summaryMarkdown   bool
+		summaryGithubStep bool
+		summaryFile       string
+		toolTimeout       time.Duration
+		pathList          multiFlag
+		ignList           multiFlag
 	)
 
-	fs.BoolVar(&nofix, "nofix", false, "Check only, do not modify files")
-	fs.BoolVar(&nofix, "no-fix", false, "Alias for --nofix")
+	fs.BoolVar(&fix, "fix", false, "Apply auto-fixes in-place; check-only by default")
 	fs.BoolVar(&pretty, "pretty", false, "Pretty-print JSON output")
 	fs.BoolVar(&quiet, "quiet", false, "Suppress progress output (JSON only on stdout)")
 	fs.BoolVar(&quiet, "q", false, "Alias for --quiet")
+	fs.BoolVar(&summaryMarkdown, "summary-markdown", false, "Write a Markdown summary to stdout instead of JSON")
+	fs.StringVar(&summaryFile, "summary-file", "", "Write the summary to this file; JSON still emitted on stdout")
+	fs.BoolVar(&summaryGithubStep, "summary-github-step", false, "Append the summary to $GITHUB_STEP_SUMMARY; JSON still emitted on stdout")
+	fs.DurationVar(&toolTimeout, "tool-timeout", runner.DefaultToolTimeout, "Maximum wall-clock duration for one tool, e.g. 30s, 5m, 1h")
 	fs.Var(&pathList, "path", "Restrict scan to this path or file (repeatable)")
 	fs.Var(&ignList, "ignore", "Exclude this path or file from scan (repeatable)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] [workspace]\n\n"+
-				"Discover, classify, and lint/format files in a Git repository.\n\n"+
+				"Discover, classify, and lint/format files in a Git repository.\n"+
+				"Default mode is check-only; use --fix to apply auto-fixes.\n\n"+
 				"Arguments:\n"+
 				"  [workspace]          Repository root to lint (default: current directory)\n\n"+
 				"Options:\n",
 			appName)
 		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr,
-			"\nProgress output goes to stderr. JSON result goes to stdout.\n"+
+			"\nProgress output goes to stderr. JSON result goes to stdout unless --summary-markdown is set.\n"+
+				"--summary-file and --summary-github-step write Markdown independently; JSON is still emitted.\n"+
 				"Exit codes: 0 = pass, 1 = findings, 2 = error.\n\n"+
 				"Tools (in execution order):\n")
 		for _, t := range runner.Registry {
@@ -71,6 +82,15 @@ func main() {
 		os.Exit(2)
 	}
 
+	// --- Validation --------------------------------------------------------------
+
+	if err := validateSummaryOptions(summaryGithubStep); err != nil {
+		fatal("%v", err)
+	}
+	if toolTimeout <= 0 {
+		fatal("--tool-timeout must be greater than zero")
+	}
+
 	workspace := "."
 	if args := fs.Args(); len(args) > 0 {
 		workspace = args[0]
@@ -81,7 +101,11 @@ func main() {
 		fatal("%v", err)
 	}
 
-	fix := !nofix
+	if err := validateSummaryFile(absWorkspace, summaryFile); err != nil {
+		fatal("%v", err)
+	}
+
+	// --- Discovery ---------------------------------------------------------------
 
 	var log io.Writer = os.Stderr
 	if quiet {
@@ -98,46 +122,52 @@ func main() {
 		fatal("discover: %v", err)
 	}
 	logf("[%s] %d file(s) found\n", appName, len(files))
+
 	for _, warning := range pathignore.Warnings(pathList, files) {
 		logf("[%s] warning -- %s\n", appName, warning)
 	}
-	filteredFiles := pathignore.Filter(files)
-	if ignored := len(files) - len(filteredFiles); ignored > 0 {
-		logf("[%s] %d file(s) ignored by default path ignores\n", appName, ignored)
-	}
-	files = filteredFiles
+	files = pathignore.Filter(files)
 
 	if len(files) == 0 {
-		out := aggregate(absWorkspace, files, nil, "pass")
-		emit(out, pretty)
+		out := aggregate(absWorkspace, files, nil, nil, 0, 0, "pass")
+		emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 		os.Exit(0)
 	}
 
-	assignments := classify.ForTools(files)
+	// --- Tool execution ----------------------------------------------------------
 
 	ctx := context.Background()
 	var results []runner.Result
+	var wsConfigs []configUse
+	toolsRun, toolsSkipped := 0, 0
 	anyFail := false
 	anyError := false
 
-	for _, a := range assignments {
-		def, ok := toolByName(a.Tool)
-		if !ok {
-			continue
-		}
-		result := runner.Run(ctx, def, absWorkspace, fix, a.Files, log)
+	for _, a := range runner.ForTools(files) {
+		result := runner.RunWithTimeout(ctx, a.Def, absWorkspace, fix, a.Files, log, toolTimeout)
 		switch result.Status {
 		case "fail":
 			anyFail = true
+			toolsRun++
 		case "error":
 			anyError = true
+			toolsRun++
+		case "pass":
+			toolsRun++
+		case "skip":
+			toolsSkipped++
 		}
 		if result.Status != "pass" && result.Status != "skip" {
 			results = append(results, result)
 		}
+		if result.WorkspaceConfig != "" {
+			wsConfigs = append(wsConfigs, configUse{Tool: result.Tool, Config: result.WorkspaceConfig})
+		}
 	}
 
 	logf("[%s] done -- %d finding(s)\n", appName, totalFindings(results))
+
+	// --- Output ------------------------------------------------------------------
 
 	outStatus := "pass"
 	if anyError {
@@ -145,12 +175,13 @@ func main() {
 	} else if anyFail {
 		outStatus = "fail"
 	}
-	out := aggregate(absWorkspace, files, results, outStatus)
-	emit(out, pretty)
+
+	out := aggregate(absWorkspace, files, results, wsConfigs, toolsRun, toolsSkipped, outStatus)
+	emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
 
 	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
-	// A tool error takes precedence over findings: it means a clean lint
-	// result could not be produced, which is more severe than ordinary findings.
+	// A tool error takes precedence over findings: a clean lint result could not
+	// be produced, which is more severe than ordinary findings.
 	if anyError {
 		os.Exit(2)
 	}
@@ -158,6 +189,8 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// --- Helpers -------------------------------------------------------------------------
 
 func resolveWorkspace(dir string) (string, error) {
 	info, err := os.Stat(dir)
@@ -174,15 +207,6 @@ func resolveWorkspace(dir string) (string, error) {
 	return abs, nil
 }
 
-func toolByName(name string) (runner.ToolDef, bool) {
-	for _, t := range runner.Registry {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return runner.ToolDef{}, false
-}
-
 func totalFindings(results []runner.Result) int {
 	total := 0
 	for _, r := range results {
@@ -191,24 +215,36 @@ func totalFindings(results []runner.Result) int {
 	return total
 }
 
-type output struct {
-	Status          string          `json:"status"`
-	Workspace       string          `json:"workspace"`
-	FilesDiscovered int             `json:"files_discovered"`
-	TotalFindings   int             `json:"total_findings"`
-	Tools           []runner.Result `json:"tools"`
+// configUse records a tool that used a workspace-supplied configuration file.
+type configUse struct {
+	Tool   string `json:"tool"`
+	Config string `json:"config"`
 }
 
-func aggregate(workspace string, files []string, results []runner.Result, status string) output {
+type output struct {
+	Status           string          `json:"status"`
+	Workspace        string          `json:"workspace"`
+	FilesDiscovered  int             `json:"files_discovered"`
+	ToolsRun         int             `json:"tools_run"`
+	ToolsSkipped     int             `json:"tools_skipped"`
+	TotalFindings    int             `json:"total_findings"`
+	Tools            []runner.Result `json:"tools"`
+	WorkspaceConfigs []configUse     `json:"workspace_configs,omitempty"`
+}
+
+func aggregate(workspace string, files []string, results []runner.Result, wsConfigs []configUse, toolsRun, toolsSkipped int, status string) output {
 	if results == nil {
 		results = []runner.Result{}
 	}
 	return output{
-		Status:          status,
-		Workspace:       workspace,
-		FilesDiscovered: len(files),
-		TotalFindings:   totalFindings(results),
-		Tools:           results,
+		Status:           status,
+		Workspace:        workspace,
+		FilesDiscovered:  len(files),
+		ToolsRun:         toolsRun,
+		ToolsSkipped:     toolsSkipped,
+		TotalFindings:    totalFindings(results),
+		Tools:            results,
+		WorkspaceConfigs: wsConfigs,
 	}
 }
 

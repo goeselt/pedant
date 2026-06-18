@@ -1,5 +1,20 @@
 {
+  "files_discovered": 2,
   "status": "fail",
-  "tools_errored": [],
-  "tools_failing": ["ruff"]
+  "tools": [
+    {
+      "files": [
+        "bad.py"
+      ],
+      "finding_count": 2,
+      "has_error": false,
+      "name": "ruff",
+      "rules": [
+        "SIM108",
+        "UP031"
+      ],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 2
 }

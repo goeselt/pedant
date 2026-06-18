@@ -1,8 +1,13 @@
 # pedant
 
 A Docker-based linting and formatting orchestrator for Git repositories. It runs several tools in a single container
-pass, reports findings as JSON on stdout, and can autofix what is fixable. No tool installations required -- pull the
-image and run.
+pass, reports findings as JSON on stdout by default, and can autofix what is fixable. No tool installations required --
+pull the image and run.
+
+Pedant fills the gap between no automated checks and a full quality pipeline. One action replaces fifteen separate tool
+integrations: no per-tool installation, no per-repository configuration overhead, and no version drift between
+repositories. It covers the checks that are cheap to run on every commit -- formatting, idiomatic lint, and style
+conventions -- and is intentionally complementary to, not a replacement for, security-focused tooling.
 
 ## Quick Start
 
@@ -15,88 +20,140 @@ With options:
 ```yaml
 - uses: goeselt/pedant@v1
   with:
-    fix: 'true' # apply auto-fixes (default: false)
-    paths: 'src/ docs/' # restrict scan to these paths
-    ignore: 'vendor/ dist/' # exclude these paths
+    fix: 'true' # apply auto-fixes (default: false -- check only)
+    paths: | # restrict scan to these paths (one per line)
+      src/
+      docs/
+    ignore: | # exclude these paths (one per line)
+      vendor/
+      dist/
+    tool-timeout: 10m # fail a single stuck tool instead of hanging the job
+    summary-github-step: 'true' # append Markdown summary to the GitHub step summary
+    summary-file: 'pedant-summary.md' # also write the summary to a file
 ```
 
 The action always runs all applicable tools. When `fix: 'true'`, the caller is responsible for committing any changes.
+
+### Action Outputs
+
+| Output             | Description                                                  |
+| ------------------ | ------------------------------------------------------------ |
+| `status`           | `pass`, `fail`, or `error`                                   |
+| `total-findings`   | Total number of findings across all tools                    |
+| `files-discovered` | Number of files discovered and checked                       |
+| `tools-run`        | Number of tools that executed (not skipped)                  |
+| `tools-skipped`    | Number of tools skipped (no matching files or condition met) |
+
+Use outputs to drive downstream steps:
+
+```yaml
+- uses: goeselt/pedant@v1
+  id: lint
+- if: steps.lint.outputs.status == 'fail'
+  run: echo "Lint failed with ${{ steps.lint.outputs.total-findings }} finding(s)"
+```
 
 ## Tools
 
 | Tool            | Checks                                                                           | Autofix            |
 | --------------- | -------------------------------------------------------------------------------- | ------------------ |
-| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules | :x:                |
+| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules |                    |
 | `prettier`      | Formatting of JSON, YAML, Markdown, HTML, CSS, JS/TS                             | :white_check_mark: |
 | `shfmt`         | Shell script formatting                                                          | :white_check_mark: |
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
 | `markdownlint`  | Markdown structure and style                                                     | :white_check_mark: |
 | `eslint`        | JavaScript / TypeScript lint                                                     | :white_check_mark: |
+| `stylelint`     | CSS lint                                                                         | :white_check_mark: |
 | `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
 | `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
-| `hadolint`      | Dockerfile best practices                                                        | :x:                |
-| `shellcheck`    | Shell script correctness                                                         | :x:                |
-| `yamllint`      | YAML syntax and style                                                            | :x:                |
-| `actionlint`    | GitHub Actions workflow correctness                                              | :x:                |
-| `golangci-lint` | Go static analysis                                                               | :x:                |
+| `hadolint`      | Dockerfile best practices                                                        |                    |
+| `shellcheck`    | Shell script correctness                                                         |                    |
+| `yamllint`      | YAML syntax and style                                                            |                    |
+| `actionlint`    | GitHub Actions workflow correctness                                              |                    |
+| `golangci-lint` | Go static analysis                                                               |                    |
 | `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 
 Tools only run when matching files are present. A repository without Go files, for example, will skip `golangci-lint`
 automatically.
+
+## Out of Scope
+
+pedant covers code style, formatting, and language-specific lint. The following categories are intentionally excluded:
+
+- **SAST and secret scanning** -- GitHub Advanced Security (CodeQL, secret scanning) covers these natively for GitHub
+  repositories; running a second SAST pass in pedant would duplicate effort and add noise.
+- **Dependency and container vulnerability scanning** -- Trivy, Grype, and `npm audit` match CVEs against dependency
+  trees and container images; Dependabot surfaces fixes as pull requests. These tools operate on build artifacts, not
+  source files.
+- **IaC misconfiguration** -- Checkov and tfsec analyze Terraform, Kubernetes, and CloudFormation manifests for security
+  misconfigurations. Their findings carry severity ratings and remediation workflows that belong in a dedicated review
+  gate, not alongside formatting errors.
+
+These tools require different permissions, longer runtimes, and produce findings with severity semantics that do not fit
+a per-commit lint pass.
 
 ## Configuration
 
 pedant ships a bundled config for every configurable tool. If a workspace config is found in the repository root, pedant
 always uses that instead of the bundled default -- per-tool, so you can override only the tools you care about.
 
-The bundled `eslint` config lints JavaScript and TypeScript out of the box, including JSX -- `.js`, `.jsx`, `.mjs`,
-`.cjs`, `.ts`, `.tsx`, `.mts` and `.cts`. It applies the non-type-checked `typescript-eslint` recommended rules, so no
-`tsconfig.json` is required; cross-file and type-aware checks remain the TypeScript compiler's job (`tsc`). Supply your
-own `eslint.config.*` to enable type-aware rules or any other project-specific setup.
+The bundled `eslint` config covers all common JS/TS extensions (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`,
+`.cts`) without requiring a `tsconfig.json`. Type-aware and cross-file checks are out of scope for pedant -- those
+belong in the TypeScript compiler (`tsc`). Supply your own `eslint.config.*` to enable them or any other
+project-specific rules.
 
 | Tool            | Workspace Config File                                                                                                                            |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                                                                            |
 | `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                                                                  |
-| `shfmt`         | -- (no config)                                                                                                                                   |
+| `shfmt`         | (no config)                                                                                                                                      |
 | `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
 | `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
 | `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |
+| `stylelint`     | `.stylelintrc`, `.stylelintrc.json`, `.stylelintrc.yaml`, `.stylelintrc.yml`, `stylelint.config.js`, ...                                         |
 | `hadolint`      | `.hadolint.yaml`, `.hadolint.yml`                                                                                                                |
 | `shellcheck`    | `.shellcheckrc`                                                                                                                                  |
 | `yamllint`      | `.yamllint.yml`, `.yamllint.yaml`, `.yamllint`                                                                                                   |
 | `actionlint`    | `.github/actionlint.yaml`, `.github/actionlint.yml`, `actionlint.yaml`, `actionlint.yml`                                                         |
 | `golangci-lint` | `.golangci.yml`, `.golangci.yaml`, `.golangci.toml`, `.golangci.json`                                                                            |
 | `ruff`          | `ruff.toml`, `.ruff.toml`, `pyproject.toml`                                                                                                      |
-| `plainify`      | -- (no config)                                                                                                                                   |
+| `plainify`      | (no config)                                                                                                                                      |
 
 ## Options
 
-| Flag                  | Description                                      |
-| --------------------- | ------------------------------------------------ |
-| `--nofix`, `--no-fix` | Check only, do not modify files                  |
-| `--path <path>`       | Restrict scan to this path or file (repeatable)  |
-| `--ignore <path>`     | Exclude this path or file from scan (repeatable) |
-| `--pretty`            | Pretty-print JSON output                         |
-| `--quiet`, `-q`       | Suppress progress output; JSON only on stdout    |
+| Flag                    | Description                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `--fix`                 | Apply auto-fixes in-place; check-only by default                              |
+| `--path <path>`         | Restrict scan to this path or file (repeatable)                               |
+| `--ignore <path>`       | Exclude this path or file from scan (repeatable)                              |
+| `--tool-timeout <dur>`  | Maximum wall-clock duration for one tool, e.g. `30s`, `5m`, or `1h`           |
+| `--pretty`              | Pretty-print JSON output                                                      |
+| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                 |
+| `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                            |
+| `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout               |
+| `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout |
 
-Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
-`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
-a warning and omits those files from tool runs.
+### File Discovery
 
 File discovery uses `git ls-files --exclude-standard`, so `.gitignore`, `.git/info/exclude`, and global Git ignore rules
 are respected for untracked files, including when `--path` is used. Files already tracked by Git remain discoverable,
 which matches Git's normal ignore behavior.
 
+Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
+`public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
+a warning and omits those files from tool runs.
+
 ## Output
 
-Progress is written to **stderr**. JSON is written to **stdout**:
+Progress is written to **stderr**. By default, JSON is written to **stdout**:
 
 ```json
 {
   "status": "fail",
   "workspace": "/work",
   "files_discovered": 24,
+  "tools_run": 12,
+  "tools_skipped": 2,
   "total_findings": 2,
   "tools": [
     {
@@ -112,13 +169,41 @@ Progress is written to **stderr**. JSON is written to **stdout**:
         }
       ]
     }
-  ]
+  ],
+  "workspace_configs": [{ "tool": "shellcheck", "config": ".shellcheckrc" }]
 }
 ```
 
 The top-level `status` is `"pass"` (all tools clean), `"fail"` (one or more tools reported findings), or `"error"` (one
 or more tools could not run to completion). Only tools with findings or errors appear in the `tools` array. Tools with
-no matching files or a clean result are omitted.
+no matching files or a clean result are omitted; `tools_skipped` counts how many were not applicable.
+
+`workspace_configs` lists tools that used a workspace-supplied configuration file rather than the bundled default. It is
+omitted from the output when empty.
+
+### Markdown Summary
+
+Use `--summary-markdown`, `--summary-file <path>`, and/or `--summary-github-step` to produce a concise human-readable
+report.
+
+- `--summary-markdown` writes Markdown to **stdout** instead of JSON.
+- `--summary-file` and `--summary-github-step` write Markdown to their respective destinations; **JSON is still emitted
+  on stdout** so downstream steps can parse it.
+
+The summary always includes the overall status, checked file count, tool counts, and finding count. Detailed sections
+include only tools with findings or errors, which keeps CI output focused on actionable information.
+
+Write a Markdown summary to stdout (replaces JSON):
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --summary-markdown
+```
+
+Write a local Markdown summary file and still emit JSON on stdout:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --summary-file pedant-summary.md
+```
 
 ### Exit Codes
 
@@ -134,28 +219,28 @@ no matching files or a clean result are omitted.
 docker pull ghcr.io/goeselt/pedant:latest
 ```
 
-Check the current repository without modifying files:
-
-```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix
-```
-
-Check and autofix in one pass:
+Check the current repository without modifying files (default):
 
 ```bash
 docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest
 ```
 
+Check and autofix in one pass:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --fix
+```
+
 Restrict the scan to specific paths or files:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --path src/ --path README.md
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --path src/ --path README.md
 ```
 
 Exclude paths or files from the scan:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --ignore vendor/ --ignore generated/file.go
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --ignore vendor/ --ignore generated/file.go
 ```
 
 ## Contributing

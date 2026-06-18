@@ -1,14 +1,14 @@
 {
-  "files_discovered": 1,
+  "files_discovered": 3,
   "status": "fail",
   "tools": [
     {
       "files": [
-        "notes.md"
+        "Makefile"
       ],
       "finding_count": 1,
       "has_error": false,
-      "name": "plainify",
+      "name": "editorconfig",
       "rules": [],
       "status": "fail"
     }

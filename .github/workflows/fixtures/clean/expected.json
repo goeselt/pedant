@@ -1,5 +1,6 @@
 {
+  "files_discovered": 9,
   "status": "pass",
-  "tools_errored": [],
-  "tools_failing": []
+  "tools": [],
+  "total_findings": 0
 }

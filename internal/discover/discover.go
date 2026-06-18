@@ -9,11 +9,33 @@ import (
 	"strings"
 )
 
+// rejectPathspecMagic returns an error if entry starts with ":(" which would
+// inject git pathspec magic beyond the :(exclude) prefix that Files itself adds.
+func rejectPathspecMagic(kind, entry string) error {
+	if strings.HasPrefix(entry, ":(") {
+		return fmt.Errorf("%s %q: pathspec magic is not allowed", kind, entry)
+	}
+	return nil
+}
+
 // Files returns workspace-relative paths of all lintable files.
 // It delegates to git ls-files so that .gitignore rules are respected hierarchically.
 // If paths is non-empty, the scan is restricted to those subdirectories or files.
 // If ignore is non-empty, those paths are excluded using git's :(exclude) pathspec magic.
+// Values starting with ":(" are rejected because they would inject additional pathspec
+// magic and could cause unexpected file selection or exclusion.
 func Files(workspace string, paths, ignore []string) ([]string, error) {
+	for _, p := range paths {
+		if err := rejectPathspecMagic("path", p); err != nil {
+			return nil, err
+		}
+	}
+	for _, ig := range ignore {
+		if err := rejectPathspecMagic("ignore", ig); err != nil {
+			return nil, err
+		}
+	}
+
 	// -z: NUL-terminated output so filenames containing newlines or quotes round-trip correctly.
 	// Without it, git would also quote unusual filenames, which we would then have to unquote.
 	args := []string{"ls-files", "-z", "--cached", "--others", "--exclude-standard"}
@@ -45,8 +67,12 @@ func Files(workspace string, paths, ignore []string) ([]string, error) {
 		if l == "" || seen[l] {
 			continue
 		}
-		// Skip files tracked in the index but deleted from the working tree.
-		if _, err := os.Stat(filepath.Join(workspace, l)); err != nil {
+		// Skip files that are absent or are symlinks.
+		// Symlinks can point outside the workspace and would cause linters to
+		// read unintended files (e.g. /etc/passwd) whose content might surface
+		// in tool output or the step summary.
+		info, err := os.Lstat(filepath.Join(workspace, l))
+		if err != nil || info.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
 		seen[l] = true
