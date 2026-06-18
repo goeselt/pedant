@@ -14,11 +14,11 @@ inputs:
     default: 'false'
   paths:
     description: >
-      Restrict the scan to these workspace-relative paths or files, space-separated (e.g. 'src/ README.md'). Omit to scan the entire repository.
+      Restrict the scan to these workspace-relative paths or files, one per line. Omit to scan the entire repository.
     default: ''
   ignore:
     description: >
-      Exclude these workspace-relative paths or files from the scan, space-separated (e.g. 'vendor/ generated/file.go'). Omit to exclude nothing.
+      Exclude these workspace-relative paths or files from the scan, one per line. Omit to exclude nothing.
     default: ''
   summary-markdown:
     description: >
@@ -33,14 +33,26 @@ inputs:
       Append the generated Markdown summary to the GitHub Actions step summary. Set to 'true' to enable.
     default: 'false'
 
+outputs:
+  status:
+    description: >
+      Overall result of the run: 'pass', 'fail', or 'error'.
+  total-findings:
+    description: >
+      Total number of findings across all tools.
+  files-discovered:
+    description: >
+      Number of files discovered and checked.
+  tools-run:
+    description: >
+      Number of tools that executed (not skipped).
+  tools-skipped:
+    description: >
+      Number of tools skipped (no matching files or skip condition met).
+
 runs:
   using: docker
   # Image tag is updated automatically by the release workflow on every push.
+  # Inputs are passed to entrypoint.sh as INPUT_* environment variables automatically
+  # by the Actions runner — no args: list needed.
   image: docker://ghcr.io/goeselt/pedant:1.1.1
-  args:
-    - '${{ inputs.fix }}'
-    - '${{ inputs.paths }}'
-    - '${{ inputs.ignore }}'
-    - "${{ inputs['summary-markdown'] }}"
-    - "${{ inputs['summary-file'] }}"
-    - "${{ inputs['summary-github-step'] }}"

@@ -36,38 +36,60 @@ func validateSummaryOptions(summaryGithubStep bool) error {
 	return nil
 }
 
-func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile string, summaryGithubStep bool) {
-	if !summaryMarkdown && summaryFile == "" && !summaryGithubStep {
-		emit(out, pretty)
+// writeGitHubOutputs writes action output variables to $GITHUB_OUTPUT when set.
+// Non-fatal: if the file cannot be opened, outputs are silently skipped.
+func writeGitHubOutputs(out output) {
+	path := os.Getenv("GITHUB_OUTPUT")
+	if path == "" {
 		return
 	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "status=%s\ntotal-findings=%d\nfiles-discovered=%d\ntools-run=%d\ntools-skipped=%d\n",
+		out.Status, out.TotalFindings, out.FilesDiscovered, out.ToolsRun, out.ToolsSkipped)
+}
 
-	report := renderMarkdownSummary(out)
+func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile string, summaryGithubStep bool) {
+	writeGitHubOutputs(out)
 
-	if summaryMarkdown {
-		fmt.Print(report)
+	// --summary-file and --summary-github-step write Markdown to their own
+	// destinations independently; they do not suppress JSON on stdout.
+	// Only --summary-markdown suppresses JSON because both compete for stdout.
+	if summaryFile != "" || summaryGithubStep || summaryMarkdown {
+		report := renderMarkdownSummary(out)
+
+		if summaryMarkdown {
+			fmt.Print(report)
+		}
+
+		if summaryFile != "" {
+			if err := os.WriteFile(summaryFile, []byte(report), 0o644); err != nil {
+				fatal("write summary file: %v", err)
+			}
+		}
+
+		if summaryGithubStep {
+			// validateSummaryOptions already guarantees GITHUB_STEP_SUMMARY is set.
+			path := os.Getenv("GITHUB_STEP_SUMMARY")
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+			if err != nil {
+				fatal("open GitHub step summary: %v", err)
+			}
+			if _, err := f.WriteString(report); err != nil {
+				_ = f.Close()
+				fatal("write GitHub step summary: %v", err)
+			}
+			if err := f.Close(); err != nil {
+				fatal("close GitHub step summary: %v", err)
+			}
+		}
 	}
 
-	if summaryFile != "" {
-		if err := os.WriteFile(summaryFile, []byte(report), 0o644); err != nil {
-			fatal("write summary file: %v", err)
-		}
-	}
-
-	if summaryGithubStep {
-		// validateSummaryOptions already guarantees GITHUB_STEP_SUMMARY is set.
-		path := os.Getenv("GITHUB_STEP_SUMMARY")
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-		if err != nil {
-			fatal("open GitHub step summary: %v", err)
-		}
-		if _, err := f.WriteString(report); err != nil {
-			_ = f.Close()
-			fatal("write GitHub step summary: %v", err)
-		}
-		if err := f.Close(); err != nil {
-			fatal("close GitHub step summary: %v", err)
-		}
+	if !summaryMarkdown {
+		emit(out, pretty)
 	}
 }
 
@@ -77,8 +99,12 @@ func renderMarkdownSummary(out output) string {
 	fmt.Fprintln(&b)
 	fmt.Fprintf(&b, "- Status: `%s`\n", out.Status)
 	fmt.Fprintf(&b, "- Files checked: %d\n", out.FilesDiscovered)
+	if out.ToolsSkipped > 0 {
+		fmt.Fprintf(&b, "- Tools: %d run, %d skipped\n", out.ToolsRun, out.ToolsSkipped)
+	} else {
+		fmt.Fprintf(&b, "- Tools run: %d\n", out.ToolsRun)
+	}
 	fmt.Fprintf(&b, "- Findings: %d\n", out.TotalFindings)
-	fmt.Fprintf(&b, "- Tools with findings/errors: %d\n", len(out.Tools))
 	if len(out.WorkspaceConfigs) > 0 {
 		fmt.Fprintf(&b, "- Workspace configs: %d\n", len(out.WorkspaceConfigs))
 	}

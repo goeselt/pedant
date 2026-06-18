@@ -31,19 +31,8 @@ var Registry = []ToolDef{
 
 // -- Helpers -----------------------------------------------------------------------------------------
 
-// workspaceConfig returns the path of the first candidate that exists in workspace,
-// or "" if none are found.
-func workspaceConfig(workspace string, candidates ...string) string {
-	for _, c := range candidates {
-		if _, err := os.Stat(filepath.Join(workspace, c)); err == nil {
-			return filepath.Join(workspace, c)
-		}
-	}
-	return ""
-}
-
-// workspaceConfigRel is like workspaceConfig but returns the workspace-relative
-// candidate path instead of the absolute path. Used by FindWorkspaceConfig fields.
+// workspaceConfigRel returns the workspace-relative path of the first candidate
+// that exists under workspace, or "" if none are found.
 func workspaceConfigRel(workspace string, candidates ...string) string {
 	for _, c := range candidates {
 		if _, err := os.Stat(filepath.Join(workspace, c)); err == nil {
@@ -103,7 +92,7 @@ var editorconfigTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".editorconfig-checker.json", ".ecrc"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-no-color", "-format", "gcc"}
-		if workspaceConfig(workspace, ".editorconfig-checker.json", ".ecrc") == "" {
+		if workspaceConfigRel(workspace, ".editorconfig-checker.json", ".ecrc") == "" {
 			if cfg := bundledConfig("/etc/pedant/editorconfig/.editorconfig-checker.json"); cfg != "" {
 				args = append(args, "-config", cfg)
 			}
@@ -166,7 +155,7 @@ var prettierTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(prettierConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"--no-color"}
-		if workspaceConfig(workspace, prettierConfigCandidates...) == "" {
+		if workspaceConfigRel(workspace, prettierConfigCandidates...) == "" {
 			if cfg := bundledConfig("/etc/pedant/prettier/.prettierrc"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}
@@ -236,7 +225,7 @@ var textlintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".textlintrc", ".textlintrc.json", ".textlintrc.yaml", ".textlintrc.yml"),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
-		if workspaceConfig(workspace, ".textlintrc", ".textlintrc.json", ".textlintrc.yaml", ".textlintrc.yml") == "" {
+		if workspaceConfigRel(workspace, ".textlintrc", ".textlintrc.json", ".textlintrc.yaml", ".textlintrc.yml") == "" {
 			if cfg := bundledConfig("/etc/pedant/textlint/.textlintrc.json"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}
@@ -298,7 +287,7 @@ var markdownlintTool = ToolDef{
 	),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
-		if workspaceConfig(workspace,
+		if workspaceConfigRel(workspace,
 			".markdownlint-cli2.yaml", ".markdownlint-cli2.yml", ".markdownlint-cli2.jsonc",
 			".markdownlint.yaml", ".markdownlint.yml", ".markdownlint.json",
 		) == "" {
@@ -355,7 +344,7 @@ var eslintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(eslintConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
-		if workspaceConfig(workspace, eslintConfigCandidates...) == "" {
+		if workspaceConfigRel(workspace, eslintConfigCandidates...) == "" {
 			if cfg := bundledConfig("/etc/pedant/eslint/eslint.config.mjs"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}
@@ -419,7 +408,7 @@ var hadolintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".hadolint.yaml", ".hadolint.yml"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"--format=json"}
-		cfgFile := workspaceConfig(workspace, ".hadolint.yaml", ".hadolint.yml")
+		cfgFile := workspaceConfigRel(workspace, ".hadolint.yaml", ".hadolint.yml")
 		if cfgFile == "" {
 			cfgFile = bundledConfig("/etc/pedant/hadolint/.hadolint.yaml")
 		}
@@ -478,7 +467,7 @@ var shellcheckTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".shellcheckrc"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"--format=json"}
-		rcfile := workspaceConfig(workspace, ".shellcheckrc")
+		rcfile := workspaceConfigRel(workspace, ".shellcheckrc")
 		if rcfile == "" {
 			rcfile = bundledConfig("/etc/pedant/shellcheck/.shellcheckrc")
 		}
@@ -531,7 +520,7 @@ var yamllintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".yamllint.yml", ".yamllint.yaml", ".yamllint"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-f", "parsable"}
-		cfgFile := workspaceConfig(workspace, ".yamllint.yml", ".yamllint.yaml", ".yamllint")
+		cfgFile := workspaceConfigRel(workspace, ".yamllint.yml", ".yamllint.yaml", ".yamllint")
 		if cfgFile == "" {
 			cfgFile = bundledConfig("/etc/pedant/yamllint/.yamllint.yml")
 		}
@@ -585,7 +574,7 @@ var actionlintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml"),
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-no-color", "-format", "{{json .}}"}
-		cfgFile := workspaceConfig(workspace, ".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml")
+		cfgFile := workspaceConfigRel(workspace, ".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml")
 		if cfgFile == "" {
 			cfgFile = bundledConfig("/etc/pedant/actionlint/actionlint.yaml")
 		}
@@ -645,7 +634,7 @@ var golangciTool = ToolDef{
 	Args: func(_ bool, workspace string, _ []string) []string {
 		// golangci-lint operates on packages, not individual files.
 		args := []string{"run", "--output.json.path=stdout"}
-		cfgFile := workspaceConfig(workspace, ".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json")
+		cfgFile := workspaceConfigRel(workspace, ".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json")
 		if cfgFile == "" {
 			if cfg := bundledConfig("/etc/pedant/golangci-lint/.golangci.yml"); cfg != "" {
 				args = append(args, "--config", cfg)
@@ -769,7 +758,7 @@ var ruffFormatTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(ruffConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"format", "--no-cache"}
-		if workspaceConfig(workspace, ruffConfigCandidates...) == "" {
+		if workspaceConfigRel(workspace, ruffConfigCandidates...) == "" {
 			if cfg := bundledConfig("/etc/pedant/ruff/ruff.toml"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}
@@ -818,7 +807,7 @@ var stylelintTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(stylelintConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{}
-		if workspaceConfig(workspace, stylelintConfigCandidates...) == "" {
+		if workspaceConfigRel(workspace, stylelintConfigCandidates...) == "" {
 			if cfg := bundledConfig("/etc/pedant/stylelint/.stylelintrc.json"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}
@@ -884,7 +873,7 @@ var ruffTool = ToolDef{
 	FindWorkspaceConfig: makeConfigFinder(ruffConfigCandidates...),
 	Args: func(fix bool, workspace string, files []string) []string {
 		args := []string{"check", "--no-cache"}
-		if workspaceConfig(workspace, ruffConfigCandidates...) == "" {
+		if workspaceConfigRel(workspace, ruffConfigCandidates...) == "" {
 			if cfg := bundledConfig("/etc/pedant/ruff/ruff.toml"); cfg != "" {
 				args = append(args, "--config", cfg)
 			}

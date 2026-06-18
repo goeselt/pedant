@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Docker entrypoint for pedant.
 #
-# GitHub Actions mode (GITHUB_ACTIONS=true): translates INPUT_* env vars that
-# the Actions runner injects from action.yml inputs into pedant CLI flags.
+# GitHub Actions mode (GITHUB_ACTIONS=true): the Actions runner injects each
+# input as an INPUT_<NAME> environment variable automatically. No positional
+# arguments are passed from action.yml, so adding a new input only requires
+# updating action.yml and reading INPUT_<NEWNAME> here.
 #
 # Direct invocation mode: passes all arguments through to pedant unchanged so
 # that local `docker run --rm -v $(pwd):/work pedant [options]` keeps working.
@@ -17,36 +19,30 @@ input() {
 
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     args=()
-    input_fix="${1:-$(input FIX)}"
-    input_paths="${2:-$(input PATHS)}"
-    input_ignore="${3:-$(input IGNORE)}"
-    input_summary_markdown="${4:-$(input SUMMARY_MARKDOWN)}"
-    input_summary_file="${5:-$(input SUMMARY_FILE)}"
-    input_summary_github_step="${6:-$(input SUMMARY_GITHUB_STEP)}"
 
-    [[ "$input_fix" == "true" ]] || args+=(--nofix)
+    [[ "$(input FIX)" == "true" ]] && args+=(--fix)
 
-    if [[ -n "$input_paths" ]]; then
-        read -ra _paths <<<"$input_paths"
-        for p in "${_paths[@]}"; do args+=(--path "$p"); done
+    if [[ -n "$(input PATHS)" ]]; then
+        while IFS= read -r p; do
+            [[ -z "$p" ]] && continue
+            args+=(--path "$p")
+        done <<<"$(input PATHS)"
     fi
 
-    if [[ -n "$input_ignore" ]]; then
-        read -ra _ignores <<<"$input_ignore"
-        for ig in "${_ignores[@]}"; do args+=(--ignore "$ig"); done
+    if [[ -n "$(input IGNORE)" ]]; then
+        while IFS= read -r ig; do
+            [[ -z "$ig" ]] && continue
+            args+=(--ignore "$ig")
+        done <<<"$(input IGNORE)"
     fi
 
-    if [[ "$input_summary_markdown" == "true" ]]; then
-        args+=(--summary-markdown)
+    [[ "$(input SUMMARY_MARKDOWN)" == "true" ]] && args+=(--summary-markdown)
+
+    if [[ -n "$(input SUMMARY_FILE)" ]]; then
+        args+=(--summary-file "$(input SUMMARY_FILE)")
     fi
 
-    if [[ -n "$input_summary_file" ]]; then
-        args+=(--summary-file "$input_summary_file")
-    fi
-
-    if [[ "$input_summary_github_step" == "true" ]]; then
-        args+=(--summary-github-step)
-    fi
+    [[ "$(input SUMMARY_GITHUB_STEP)" == "true" ]] && args+=(--summary-github-step)
 
     exec pedant "${args[@]}"
 else

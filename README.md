@@ -15,15 +15,37 @@ With options:
 ```yaml
 - uses: goeselt/pedant@v1
   with:
-    fix: 'true' # apply auto-fixes (default: false)
-    paths: 'src/ docs/' # restrict scan to these paths
-    ignore: 'vendor/ dist/' # exclude these paths
-    summary-markdown: 'true' # write a concise Markdown summary to stdout
-    summary-file: 'pedant-summary.md' # make the summary available to later steps
-    summary-github-step: 'true' # also append the summary to the GitHub step summary
+    fix: 'true'               # apply auto-fixes (default: false — check only)
+    paths: |                  # restrict scan to these paths (one per line)
+      src/
+      docs/
+    ignore: |                 # exclude these paths (one per line)
+      vendor/
+      dist/
+    summary-github-step: 'true' # append Markdown summary to the GitHub step summary
+    summary-file: 'pedant-summary.md' # also write the summary to a file
 ```
 
 The action always runs all applicable tools. When `fix: 'true'`, the caller is responsible for committing any changes.
+
+### Action Outputs
+
+| Output             | Description                                            |
+| ------------------ | ------------------------------------------------------ |
+| `status`           | `pass`, `fail`, or `error`                             |
+| `total-findings`   | Total number of findings across all tools              |
+| `files-discovered` | Number of files discovered and checked                 |
+| `tools-run`        | Number of tools that executed (not skipped)            |
+| `tools-skipped`    | Number of tools skipped (no matching files or condition met) |
+
+Use outputs to drive downstream steps:
+
+```yaml
+- uses: goeselt/pedant@v1
+  id: lint
+- if: steps.lint.outputs.status == 'fail'
+  run: echo "Lint failed with ${{ steps.lint.outputs.total-findings }} finding(s)"
+```
 
 ## Tools
 
@@ -77,16 +99,16 @@ own `eslint.config.*` to enable type-aware rules or any other project-specific s
 
 ## Options
 
-| Flag                    | Description                                            |
-| ----------------------- | ------------------------------------------------------ |
-| `--nofix`, `--no-fix`   | Check only, do not modify files                        |
-| `--path <path>`         | Restrict scan to this path or file (repeatable)        |
-| `--ignore <path>`       | Exclude this path or file from scan (repeatable)       |
-| `--pretty`              | Pretty-print JSON output                               |
-| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout          |
-| `--summary-markdown`    | Write a Markdown summary to stdout                     |
-| `--summary-file <path>` | Write the generated summary to this file               |
-| `--summary-github-step` | Append the generated summary to `$GITHUB_STEP_SUMMARY` |
+| Flag                    | Description                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `--fix`                 | Apply auto-fixes in-place; check-only by default                                     |
+| `--path <path>`         | Restrict scan to this path or file (repeatable)                                      |
+| `--ignore <path>`       | Exclude this path or file from scan (repeatable)                                     |
+| `--pretty`              | Pretty-print JSON output                                                             |
+| `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                        |
+| `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                                   |
+| `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout                      |
+| `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout        |
 
 Pedant always skips generated, dependency, cache, and temporary directories such as `build/`, `dist/`, `node_modules/`,
 `public/`, `target/`, `tmp/`, and `vendor/`. If an explicit `--path` selects files under one of those paths, pedant logs
@@ -105,6 +127,8 @@ Progress is written to **stderr**. By default, JSON is written to **stdout**:
   "status": "fail",
   "workspace": "/work",
   "files_discovered": 24,
+  "tools_run": 12,
+  "tools_skipped": 2,
   "total_findings": 2,
   "tools": [
     {
@@ -120,32 +144,42 @@ Progress is written to **stderr**. By default, JSON is written to **stdout**:
         }
       ]
     }
+  ],
+  "workspace_configs": [
+    {"tool": "shellcheck", "config": ".shellcheckrc"}
   ]
 }
 ```
 
 The top-level `status` is `"pass"` (all tools clean), `"fail"` (one or more tools reported findings), or `"error"` (one
 or more tools could not run to completion). Only tools with findings or errors appear in the `tools` array. Tools with
-no matching files or a clean result are omitted.
+no matching files or a clean result are omitted; `tools_skipped` counts how many were not applicable.
+
+`workspace_configs` lists tools that used a workspace-supplied configuration file rather than the bundled default. It is
+omitted from the output when empty.
 
 ### Markdown Summary
 
 Use `--summary-markdown`, `--summary-file <path>`, and/or `--summary-github-step` to produce a concise human-readable
-report. When any summary output is requested, pedant does not also emit the JSON result; progress and intermediate
-findings still go to stderr. The summary always includes the overall status, checked file count, finding count, and
-affected tools. Detailed sections include only tools with findings or errors, which keeps CI output focused on
-actionable information.
+report.
 
-Write a Markdown summary to stdout:
+- `--summary-markdown` writes Markdown to **stdout** instead of JSON.
+- `--summary-file` and `--summary-github-step` write Markdown to their respective destinations; **JSON is still emitted
+  on stdout** so downstream steps can parse it.
+
+The summary always includes the overall status, checked file count, tool counts, and finding count. Detailed sections
+include only tools with findings or errors, which keeps CI output focused on actionable information.
+
+Write a Markdown summary to stdout (replaces JSON):
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary-markdown
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --summary-markdown
 ```
 
-Write a local Markdown summary:
+Write a local Markdown summary file and still emit JSON on stdout:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summary-file pedant-summary.md
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --summary-file pedant-summary.md
 ```
 
 ### Exit Codes
@@ -162,28 +196,28 @@ docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --summar
 docker pull ghcr.io/goeselt/pedant:latest
 ```
 
-Check the current repository without modifying files:
-
-```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix
-```
-
-Check and autofix in one pass:
+Check the current repository without modifying files (default):
 
 ```bash
 docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest
 ```
 
+Check and autofix in one pass:
+
+```bash
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --fix
+```
+
 Restrict the scan to specific paths or files:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --path src/ --path README.md
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --path src/ --path README.md
 ```
 
 Exclude paths or files from the scan:
 
 ```bash
-docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --nofix --ignore vendor/ --ignore generated/file.go
+docker run --rm -v "$(pwd):/work" ghcr.io/goeselt/pedant:latest --ignore vendor/ --ignore generated/file.go
 ```
 
 ## Contributing

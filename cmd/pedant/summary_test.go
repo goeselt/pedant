@@ -25,8 +25,8 @@ func TestRenderMarkdownSummaryPass(t *testing.T) {
 		"## Pedant Summary",
 		"- Status: `pass`",
 		"- Files checked: 12",
+		"- Tools run: 0",
 		"- Findings: 0",
-		"- Tools with findings/errors: 0",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary missing %q:\n%s", want, got)
@@ -65,8 +65,8 @@ func TestRenderMarkdownSummaryFindingsAndErrors(t *testing.T) {
 	for _, want := range []string{
 		"- Status: `error`",
 		"- Files checked: 3",
+		"- Tools run: 0",
 		"- Findings: 2",
-		"- Tools with findings/errors: 2",
 		"| `eslint` | `fail` | 2 |",
 		"| `actionlint` | `error` | 0 |",
 		"### eslint",
@@ -179,6 +179,137 @@ func TestEmitSummaryMarkdownStdout(t *testing.T) {
 	if strings.Contains(got, `"status"`) {
 		t.Fatalf("stdout must not contain JSON when --summary-markdown is set:\n%s", got)
 	}
+}
+
+func TestRenderMarkdownSummaryToolCounts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		run      int
+		skipped  int
+		wantLine string
+	}{
+		{
+			name:     "no skipped",
+			run:      8,
+			skipped:  0,
+			wantLine: "- Tools run: 8",
+		},
+		{
+			name:     "with skipped",
+			run:      8,
+			skipped:  4,
+			wantLine: "- Tools: 8 run, 4 skipped",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := output{
+				Status:          "pass",
+				Workspace:       "/work",
+				FilesDiscovered: 10,
+				ToolsRun:        tc.run,
+				ToolsSkipped:    tc.skipped,
+				TotalFindings:   0,
+				Tools:           []runner.Result{},
+			}
+			got := renderMarkdownSummary(out)
+			if !strings.Contains(got, tc.wantLine) {
+				t.Fatalf("summary missing %q:\n%s", tc.wantLine, got)
+			}
+		})
+	}
+}
+
+func TestEmitOutputJSONStillEmittedWithSummaryFile(t *testing.T) {
+	// Captures os.Stdout — must not run in parallel.
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+
+	dir := t.TempDir()
+	summaryPath := filepath.Join(dir, "summary.md")
+
+	out := output{
+		Status:          "pass",
+		Workspace:       "/work",
+		FilesDiscovered: 5,
+		TotalFindings:   0,
+		Tools:           []runner.Result{},
+	}
+	// --summary-file is set but NOT --summary-markdown: JSON must still appear on stdout.
+	emitOutput(out, false, false, summaryPath, false)
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+
+	if !strings.Contains(got, `"status"`) {
+		t.Fatalf("stdout must contain JSON when only --summary-file is set:\n%s", got)
+	}
+	if strings.Contains(got, "## Pedant Summary") {
+		t.Fatalf("stdout must not contain Markdown when only --summary-file is set:\n%s", got)
+	}
+
+	// The summary file itself must contain Markdown.
+	content, err := os.ReadFile(summaryPath)
+	if err != nil {
+		t.Fatalf("read summary file: %v", err)
+	}
+	if !strings.Contains(string(content), "## Pedant Summary") {
+		t.Fatalf("summary file missing Markdown header:\n%s", content)
+	}
+}
+
+func TestWriteGitHubOutputs(t *testing.T) {
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "github_output")
+	t.Setenv("GITHUB_OUTPUT", outputPath)
+
+	out := output{
+		Status:          "fail",
+		FilesDiscovered: 24,
+		ToolsRun:        10,
+		ToolsSkipped:    3,
+		TotalFindings:   5,
+		Tools:           []runner.Result{},
+	}
+	writeGitHubOutputs(out)
+
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read GITHUB_OUTPUT file: %v", err)
+	}
+	got := string(content)
+
+	for _, want := range []string{
+		"status=fail",
+		"total-findings=5",
+		"files-discovered=24",
+		"tools-run=10",
+		"tools-skipped=3",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("GITHUB_OUTPUT missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteGitHubOutputsNoEnvVar(t *testing.T) {
+	t.Setenv("GITHUB_OUTPUT", "")
+	// Must not panic or error when GITHUB_OUTPUT is not set.
+	writeGitHubOutputs(output{Status: "pass"})
 }
 
 func TestRenderMarkdownSummaryWorkspaceConfigs(t *testing.T) {
