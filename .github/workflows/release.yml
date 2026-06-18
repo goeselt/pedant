@@ -39,7 +39,7 @@ jobs:
         with:
           fetch-depth: 0 # intent release needs full history to find the previous release tag
           token: ${{ steps.app.outputs.token }}
-          persist-credentials: false # downstream steps (scribe, shipit) supply their own tokens
+          # persist-credentials: false # downstream steps (scribe, shipit) supply their own tokens
 
       - id: intent
         name: Intent Release
