@@ -3,10 +3,31 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/goeselt/pedant/internal/runner"
 )
+
+// validateSummaryFile returns an error if summaryFile resolves to a path outside
+// workspace. An empty summaryFile is accepted.
+func validateSummaryFile(workspace, summaryFile string) error {
+	if summaryFile == "" {
+		return nil
+	}
+	abs, err := filepath.Abs(summaryFile)
+	if err != nil {
+		return fmt.Errorf("summary-file: %w", err)
+	}
+	rel, err := filepath.Rel(workspace, abs)
+	if err != nil {
+		return fmt.Errorf("summary-file %q: %w", summaryFile, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("summary-file %q is outside the workspace %q", summaryFile, workspace)
+	}
+	return nil
+}
 
 func validateSummaryOptions(summaryGithubStep bool) error {
 	if summaryGithubStep && os.Getenv("GITHUB_STEP_SUMMARY") == "" {
@@ -76,7 +97,7 @@ func renderMarkdownSummary(out output) string {
 
 		if result.Error != "" {
 			fmt.Fprintln(&b)
-			fmt.Fprintf(&b, "Error: %s\n", markdownHeading(result.Error))
+			fmt.Fprintf(&b, "Error: <code>%s</code>\n", htmlCodeText(result.Error))
 		}
 
 		if len(result.Findings) == 0 {
@@ -116,7 +137,7 @@ func ruleCell(f runner.Finding) string {
 	if f.Rule == "" {
 		return ""
 	}
-	return "`" + tableText(f.Rule) + "`"
+	return "<code>" + htmlCodeText(f.Rule) + "</code>"
 }
 
 func markdownHeading(s string) string {
@@ -125,9 +146,28 @@ func markdownHeading(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// tableText prepares s for use as plain text in a GFM table cell.
+// HTML special characters are escaped so that tool output cannot inject markup.
+// Note: content placed inside backtick code spans is already protected from HTML
+// interpretation by the browser, but we escape anyway for defence in depth.
 func tableText(s string) string {
 	s = strings.ReplaceAll(s, "\r", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
 	s = strings.ReplaceAll(s, "|", `\|`)
+	return strings.TrimSpace(s)
+}
+
+// htmlCodeText prepares s for use inside a <code>…</code> HTML element,
+// including inside GFM table cells where a bare | would split a column.
+func htmlCodeText(s string) string {
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "|", "&#124;")
 	return strings.TrimSpace(s)
 }

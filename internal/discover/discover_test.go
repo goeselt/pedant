@@ -209,6 +209,35 @@ func TestFilesWithIgnoredFile(t *testing.T) {
 	}
 }
 
+func TestFilesRejectsPathspecMagic(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	gitRun(t, dir, "git", "init")
+	gitRun(t, dir, "git", "config", "user.email", "test@example.com")
+	gitRun(t, dir, "git", "config", "user.name", "Test")
+
+	tests := []struct {
+		name   string
+		paths  []string
+		ignore []string
+	}{
+		{name: "magic in paths", paths: []string{":(glob)**/*.go"}},
+		{name: "magic in ignore", ignore: []string{":(icase)vendor"}},
+		{name: "bare magic prefix", ignore: []string{":(exclude)src"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := Files(dir, tc.paths, tc.ignore)
+			if err == nil {
+				t.Fatalf("Files with pathspec magic %v/%v: expected error, got nil", tc.paths, tc.ignore)
+			}
+		})
+	}
+}
+
 func gitRun(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command(args[0], args[1:]...)

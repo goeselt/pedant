@@ -90,6 +90,10 @@ func main() {
 		fatal("%v", err)
 	}
 
+	if err := validateSummaryFile(absWorkspace, summaryFile); err != nil {
+		fatal("%v", err)
+	}
+
 	fix := !nofix
 
 	var log io.Writer = os.Stderr

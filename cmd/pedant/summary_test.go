@@ -70,10 +70,10 @@ func TestRenderMarkdownSummaryFindingsAndErrors(t *testing.T) {
 		"| `eslint` | `fail` | 2 |",
 		"| `actionlint` | `error` | 0 |",
 		"### eslint",
-		"| `src/app.ts:12:5` | `no-unused-vars` | foo is defined but never used |",
-		"| `src/table.ts:4` | `custom\\|rule` | message with \\| pipe |",
+		"| `src/app.ts:12:5` | <code>no-unused-vars</code> | foo is defined but never used |",
+		"| `src/table.ts:4` | <code>custom&#124;rule</code> | message with \\| pipe |",
 		"### actionlint",
-		"Error: could not parse output",
+		"Error: <code>could not parse output</code>",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary missing %q:\n%s", want, got)
@@ -100,12 +100,12 @@ func TestRenderMarkdownSummaryErrorPipeNotEscaped(t *testing.T) {
 
 	got := renderMarkdownSummary(out)
 
-	// Error is a paragraph, not a table cell — pipes must not be escaped.
-	if !strings.Contains(got, "Error: failed: pipe | in error") {
-		t.Fatalf("error paragraph should not escape pipes:\n%s", got)
+	// Error is wrapped in <code>; | must be HTML-escaped (&#124;), not GFM-escaped (\|).
+	if !strings.Contains(got, "Error: <code>failed: pipe &#124; in error</code>") {
+		t.Fatalf("error should be in <code> element with HTML-escaped pipe:\n%s", got)
 	}
 	if strings.Contains(got, `\|`) {
-		t.Fatalf("error paragraph should not contain escaped pipes:\n%s", got)
+		t.Fatalf("error paragraph should not contain GFM pipe escape:\n%s", got)
 	}
 }
 
@@ -178,6 +178,85 @@ func TestEmitSummaryMarkdownStdout(t *testing.T) {
 	// JSON must not appear when --summary-markdown is active.
 	if strings.Contains(got, `"status"`) {
 		t.Fatalf("stdout must not contain JSON when --summary-markdown is set:\n%s", got)
+	}
+}
+
+func TestValidateSummaryFile(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+
+	tests := []struct {
+		name        string
+		summaryFile string
+		wantErr     bool
+	}{
+		{name: "empty allowed", summaryFile: "", wantErr: false},
+		{name: "file in workspace", summaryFile: filepath.Join(workspace, "summary.md"), wantErr: false},
+		{name: "nested in workspace", summaryFile: filepath.Join(workspace, "sub", "report.md"), wantErr: false},
+		{name: "one level up", summaryFile: filepath.Join(workspace, "..", "summary.md"), wantErr: true},
+		{name: "absolute outside workspace", summaryFile: filepath.Join(filepath.Dir(workspace), "outside.md"), wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateSummaryFile(workspace, tc.summaryFile)
+			if tc.wantErr && err == nil {
+				t.Fatalf("validateSummaryFile(%q, %q): expected error, got nil", workspace, tc.summaryFile)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("validateSummaryFile(%q, %q): unexpected error: %v", workspace, tc.summaryFile, err)
+			}
+		})
+	}
+}
+
+func TestTableTextHTMLEscape(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "plain text", want: "plain text"},
+		{input: "<script>alert(1)</script>", want: "&lt;script&gt;alert(1)&lt;/script&gt;"},
+		{input: "a & b", want: "a &amp; b"},
+		{input: "a | b", want: `a \| b`},
+		{input: "line1\nline2", want: "line1 line2"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			if got := tableText(tc.input); got != tc.want {
+				t.Errorf("tableText(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHtmlCodeText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "no-unused-vars", want: "no-unused-vars"},
+		{input: "custom|rule", want: "custom&#124;rule"},
+		{input: "<b>bold</b>", want: "&lt;b&gt;bold&lt;/b&gt;"},
+		{input: "a & b", want: "a &amp; b"},
+		{input: "line1\nline2", want: "line1 line2"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+			if got := htmlCodeText(tc.input); got != tc.want {
+				t.Errorf("htmlCodeText(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }
 
