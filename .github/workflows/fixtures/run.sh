@@ -275,6 +275,84 @@ run_option_smoke_tests() {
 
     rm -rf "$tmp"
     printf 'PASS: option smoke\n'
+
+    run_fix_order_smoke_test
+    run_fix_ownership_smoke_test
+}
+
+# run_fix_order_smoke_test: fixers must run before checkers.
+#
+# bad.sh has a line at 6-space indent (not a multiple of 4).  shfmt detects
+# the file's 4-space indent style and normalises the line to 8 spaces.
+# With correct execution order (shfmt before editorconfig), a single --fix
+# run already reports zero findings.  If editorconfig runs first it sees the
+# un-normalised 6-space line and reports a finding even though shfmt will
+# subsequently fix it.
+run_fix_order_smoke_test() {
+    local tmp raw
+    tmp=$(mktemp -d)
+    cat >"$tmp/bad.sh" <<'HEREDOC'
+#!/usr/bin/env bash
+set -euo pipefail
+
+run() {
+    if [[ $# -eq 0 ]]; then
+        printf 'no args\n'
+      printf 'please pass args\n'
+    fi
+}
+HEREDOC
+    init_workspace "$tmp"
+
+    # One --fix run must converge: shfmt precedes editorconfig.
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --fix --pretty 2>/dev/null || true)
+    if ! printf '%s\n' "$raw" | jq -e '.status == "pass" and .total_findings == 0' >/dev/null; then
+        printf 'FAIL: fix ordering -- editorconfig reports findings that shfmt would fix\n' >&2
+        printf '%s\n' "$raw" | jq -S '.' >&2 || printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    rm -rf "$tmp"
+    printf 'PASS: fix ordering\n'
+}
+
+# run_fix_ownership_smoke_test: --fix must not change file ownership.
+#
+# shfmt rewrites shell scripts atomically (temp file + rename), creating a
+# new inode owned by the container's root user.  pedant must restore the
+# original UID/GID/mode after every fix pass so that files in the workspace
+# keep their host-user ownership.
+run_fix_ownership_smoke_test() {
+    local tmp orig_owner new_owner
+    tmp=$(mktemp -d)
+    # Same script as the ordering test -- shfmt will rewrite it.
+    cat >"$tmp/bad.sh" <<'HEREDOC'
+#!/usr/bin/env bash
+set -euo pipefail
+
+run() {
+    if [[ $# -eq 0 ]]; then
+        printf 'no args\n'
+      printf 'please pass args\n'
+    fi
+}
+HEREDOC
+    init_workspace "$tmp"
+
+    orig_owner=$(stat -c '%u:%g' "$tmp/bad.sh")
+
+    docker run --rm -v "$tmp":/work "$Image" --fix --pretty >/dev/null 2>&1 || true
+
+    new_owner=$(stat -c '%u:%g' "$tmp/bad.sh")
+
+    if [[ "$orig_owner" != "$new_owner" ]]; then
+        printf 'FAIL: fix ownership -- bad.sh ownership changed from %s to %s\n' \
+            "$orig_owner" "$new_owner" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    rm -rf "$tmp"
+    printf 'PASS: fix ownership\n'
 }
 
 main() {

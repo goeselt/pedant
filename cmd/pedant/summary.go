@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,6 +56,21 @@ func writeGitHubOutputs(out output) {
 	defer func() { _ = f.Close() }()
 	_, _ = fmt.Fprintf(f, "status=%s\ntotal-findings=%d\nfiles-discovered=%d\ntools-run=%d\ntools-skipped=%d\n",
 		out.Status, out.TotalFindings, out.FilesDiscovered, out.ToolsRun, out.ToolsSkipped)
+	// Multiline output format: required for values that contain newlines.
+	// A random delimiter prevents injection if the Markdown content ever
+	// contains the delimiter string.
+	delim := outputDelimiter()
+	_, _ = fmt.Fprintf(f, "summary<<%s\n%s%s\n", delim, renderMarkdownSummary(out), delim)
+}
+
+// outputDelimiter returns a random string suitable for use as a GITHUB_OUTPUT
+// multiline delimiter.
+func outputDelimiter() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "pedant_eof"
+	}
+	return "pedant_" + hex.EncodeToString(b)
 }
 
 func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile string, summaryGithubStep bool) {

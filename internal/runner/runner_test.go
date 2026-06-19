@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -179,6 +181,42 @@ func TestLimitedBuffer(t *testing.T) {
 				t.Errorf("last Write() returned %d, want %d", lastN, tc.wantLastN)
 			}
 		})
+	}
+}
+
+// -- file stat preservation ----------------------------------------------------------
+
+func TestRestoreFileStat(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "script.sh")
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env bash\necho hi\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	saved := captureFileStat(tmp, []string{"script.sh"})
+	if len(saved) != 1 {
+		t.Fatalf("captureFileStat: got %d entries, want 1", len(saved))
+	}
+	st := saved["script.sh"]
+	if st.mode&0o111 == 0 {
+		t.Fatalf("captureFileStat: mode %v missing execute bit", st.mode)
+	}
+
+	// Simulate a tool that drops the execute bit (e.g. via temp+rename).
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	restoreFileStat(tmp, []string{"script.sh"}, saved)
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode() != st.mode {
+		t.Errorf("mode after restore: got %v, want %v", info.Mode(), st.mode)
 	}
 }
 

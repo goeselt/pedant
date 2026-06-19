@@ -312,6 +312,25 @@ func TestWriteGitHubOutputs(t *testing.T) {
 			t.Fatalf("GITHUB_OUTPUT missing %q:\n%s", want, got)
 		}
 	}
+
+	// Verify multiline summary output.
+	var delim string
+	for _, line := range strings.Split(got, "\n") {
+		if strings.HasPrefix(line, "summary<<") {
+			delim = strings.TrimPrefix(line, "summary<<")
+			break
+		}
+	}
+	if delim == "" {
+		t.Fatalf("GITHUB_OUTPUT missing multiline summary line:\n%s", got)
+	}
+	if !strings.Contains(got, "## Pedant Summary") {
+		t.Fatalf("GITHUB_OUTPUT summary missing Markdown header:\n%s", got)
+	}
+	// The closing delimiter must appear on its own line after the content.
+	if !strings.Contains(got, "\n"+delim+"\n") {
+		t.Fatalf("GITHUB_OUTPUT multiline summary missing closing delimiter %q:\n%s", delim, got)
+	}
 }
 
 func TestWriteGitHubOutputsNoEnvVar(t *testing.T) {
