@@ -3,6 +3,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,10 +17,10 @@ defaults:
     shell: bash
 
 jobs:
-  ci:
-    name: CI
+  intent:
+    name: Intent
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: write
@@ -30,6 +31,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-comment: true
 
+  ci:
+    name: CI
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
