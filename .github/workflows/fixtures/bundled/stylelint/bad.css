@@ -1,9 +1,13 @@
 /* Intentionally malformed CSS for pedant e2e testing.
  *
  * Expected findings:
- *   stylelint color-no-invalid-hex -- #gggggg is not a valid hex color
+ *   stylelint selector-class-pattern -- .InvalidCase violates the BEM/kebab-case
+ *   pattern configured in pedant's bundled .stylelintrc.json
+ *
+ * selector-class-pattern is not a stylelint default; it lives in pedant's
+ * bundled config. A finding here confirms that config is active.
  */
 
-a {
-  color: #gggggg;
+.InvalidCase {
+  color: red;
 }
