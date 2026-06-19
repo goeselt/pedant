@@ -53,6 +53,9 @@ outputs:
   tools-skipped:
     description: >
       Number of tools skipped (no matching files or skip condition met).
+  summary:
+    description: >
+      Markdown summary of the pedant run. Can be used directly as a PR comment body or passed to a step summary without writing an intermediate file.
 
 runs:
   using: docker

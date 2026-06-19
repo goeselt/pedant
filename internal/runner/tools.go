@@ -11,18 +11,23 @@ import (
 )
 
 // Registry lists all supported tools in execution order.
+// Fixers (CanFix: true) run before checkers (CanFix: false) so that
+// check-only tools such as editorconfig see files in their already-fixed
+// state rather than the pre-fix state.
 var Registry = []ToolDef{
-	editorconfigTool,
+	// -- fixers --
 	plainifyTool,
 	prettierTool,
 	shfmtTool,
 	ruffFormatTool,
-	golangciTool,
 	ruffTool,
 	textlintTool,
 	markdownlintTool,
 	eslintTool,
 	stylelintTool,
+	// -- checkers --
+	editorconfigTool,
+	golangciTool,
 	hadolintTool,
 	shellcheckTool,
 	yamllintTool,

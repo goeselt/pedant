@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -286,6 +287,11 @@ func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cm
 // Returns (findings, errMsg); errMsg != "" is a hard error that aborts batching.
 func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer, env []string) ([]Finding, string) {
 	if fix && def.CanFix {
+		// Capture ownership before fix: some tools (e.g. shfmt) write via
+		// a temp file + rename, which creates a new root-owned file inside
+		// the container.  We restore UID/GID/mode afterwards.
+		savedStats := captureFileStat(workspace, files)
+
 		fixCmd := newToolCommand(ctx, binary, def.Args(true, workspace, files)...)
 		fixCmd.Dir = workspace
 		fixCmd.Env = env
@@ -303,6 +309,8 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass stderr: %s\n", def.Name, msg)
 			}
 		}
+
+		restoreFileStat(workspace, files, savedStats)
 	}
 
 	// Check pass -- always runs; reports what remains (or all findings in check-only mode).
@@ -350,6 +358,59 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 	}
 
 	return findings, ""
+}
+
+// fileStat holds the ownership and permission bits of a file as captured
+// before a fix pass, so they can be restored afterwards.
+type fileStat struct {
+	uid  uint32
+	gid  uint32
+	mode os.FileMode
+}
+
+// captureFileStat records the UID, GID, and mode of each file in files
+// (resolved relative to workspace) before a fix pass runs.
+func captureFileStat(workspace string, files []string) map[string]fileStat {
+	stats := make(map[string]fileStat, len(files))
+	for _, f := range files {
+		info, err := os.Lstat(filepath.Join(workspace, f))
+		if err != nil {
+			continue
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			continue
+		}
+		stats[f] = fileStat{uid: st.Uid, gid: st.Gid, mode: info.Mode()}
+	}
+	return stats
+}
+
+// restoreFileStat applies the ownership and mode recorded in saved to each
+// file that was modified by a fix pass.  Errors are silently ignored: a
+// failed restore is better than aborting the check pass entirely.
+func restoreFileStat(workspace string, files []string, saved map[string]fileStat) {
+	for _, f := range files {
+		orig, ok := saved[f]
+		if !ok {
+			continue
+		}
+		absPath := filepath.Join(workspace, f)
+		info, err := os.Lstat(absPath)
+		if err != nil {
+			continue
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			continue
+		}
+		if st.Uid != orig.uid || st.Gid != orig.gid {
+			_ = syscall.Chown(absPath, int(orig.uid), int(orig.gid))
+		}
+		if info.Mode() != orig.mode {
+			_ = os.Chmod(absPath, orig.mode)
+		}
+	}
 }
 
 func printFinding(w io.Writer, f Finding) {

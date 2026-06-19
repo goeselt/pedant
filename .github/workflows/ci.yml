@@ -38,6 +38,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -82,13 +83,25 @@ jobs:
         run: PEDANT_IMAGE=pedant:ci .github/workflows/fixtures/run.sh --all
 
       - name: Self-Check
+        id: self-check
+        continue-on-error: true
         env:
           INPUT_FIX: 'false'
           INPUT_IGNORE: '.github/workflows/fixtures'
+          INPUT_SUMMARY_FILE: 'pedant-self-check.md'
         run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE:/work" \
-            -e GITHUB_ACTIONS \
-            -e INPUT_FIX \
-            -e INPUT_IGNORE \
-            pedant:ci
+          docker run --rm -v "$GITHUB_WORKSPACE:/work" \
+            -e GITHUB_ACTIONS -e INPUT_FIX -e INPUT_IGNORE -e INPUT_SUMMARY_FILE pedant:ci
+
+      - name: Publish Self-Check Report
+        if: always()
+        uses: goeselt/remark@8e26bcfea2731e7708356089efaee753360c78f9 # v1.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-key: pedant-self-check
+          body-file: pedant-self-check.md
+          skip-unchanged: true
+
+      - name: Fail On Self-Check Findings
+        if: steps.self-check.outcome == 'failure'
+        run: exit 1
