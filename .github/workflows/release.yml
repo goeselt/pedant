@@ -43,7 +43,7 @@ jobs:
 
       - id: intent
         name: Intent Release
-        uses: goeselt/intent@c524346424a2bbbb5cb1e399fb1f086236935df2 # v1.1.1
+        uses: goeselt/intent@10ce9d916bb1af60c48ff1bc03a99348aede7f1a # v1.1.4
         with:
           initial-version: '1.0.0'
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Commit
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/scribe@c233f5828a9590d21e2af93d7f2d4cf6a81ac822 # v1.2.0
+        uses: goeselt/scribe@4628c4f2ebb92e31e989b220b1a82ba5132d0a3f # v1.2.1
         with:
           files: |
             action.yml
@@ -134,7 +134,7 @@ jobs:
 
       - name: Ship
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/dispatch@3f631284a1b7e62bd0d11f954d3b1acc64fdbabc # v1.2.0
+        uses: goeselt/dispatch@537bfa0724a8de8b2a8e282458944a9cf368f740 # v1.2.3
         with:
           release-tag: ${{ steps.intent.outputs.release-tag }}
           major-tag: ${{ steps.intent.outputs.major-tag }}

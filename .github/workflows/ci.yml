@@ -79,7 +79,7 @@ jobs:
 
       - name: Publish Self-Check Report
         if: always()
-        uses: goeselt/remark@8e26bcfea2731e7708356089efaee753360c78f9 # v1.0.1
+        uses: goeselt/remark@7b12cbf2a7eabecc7fed7189ba79c5cf6c484952 # v1.0.4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-key: pedant-self-check
