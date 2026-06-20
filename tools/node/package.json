@@ -6,7 +6,7 @@
   "dependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.5.0",
-    "eslint-plugin-unicorn": "67.0.0",
+    "eslint-plugin-unicorn": "68.0.0",
     "globals": "17.6.0",
     "jiti": "2.7.0",
     "markdownlint-cli2": "0.22.1",
