@@ -137,14 +137,27 @@ func main() {
 	// --- Tool execution ----------------------------------------------------------
 
 	ctx := context.Background()
+	assignments := runner.ForTools(files)
+
+	// Fix phase: run every fixer silently so that all files are in their final
+	// fixed state before any tool's check pass reports findings.
+	// Without this, a checker that runs between two fixers would see a
+	// mid-fix snapshot and report transient findings that vanish on the next run.
+	if fix {
+		for _, a := range assignments {
+			runner.RunFixWithTimeout(ctx, a.Def, absWorkspace, a.Files, log, toolTimeout)
+		}
+	}
+
+	// Check phase: run every tool in check-only mode and collect findings.
 	var results []runner.Result
 	var wsConfigs []configUse
 	toolsRun, toolsSkipped := 0, 0
 	anyFail := false
 	anyError := false
 
-	for _, a := range runner.ForTools(files) {
-		result := runner.RunWithTimeout(ctx, a.Def, absWorkspace, fix, a.Files, log, toolTimeout)
+	for _, a := range assignments {
+		result := runner.RunWithTimeout(ctx, a.Def, absWorkspace, false, a.Files, log, toolTimeout)
 		switch result.Status {
 		case "fail":
 			anyFail = true

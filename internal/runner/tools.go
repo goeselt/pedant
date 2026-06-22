@@ -14,10 +14,14 @@ import (
 // Fixers (CanFix: true) run before checkers (CanFix: false) so that
 // check-only tools such as editorconfig see files in their already-fixed
 // state rather than the pre-fix state.
+//
+// Within fixers, opinionated formatters (prettier) run last so that their
+// check pass always sees files they just wrote.  Rule-based fixers (markdownlint,
+// eslint, stylelint) run first; prettier re-formats the result and has the
+// final say on whitespace and structure.
 var Registry = []ToolDef{
-	// -- fixers --
+	// -- fixers: content transforms and rule-based linters first --
 	plainifyTool,
-	prettierTool,
 	shfmtTool,
 	ruffFormatTool,
 	ruffTool,
@@ -25,6 +29,8 @@ var Registry = []ToolDef{
 	markdownlintTool,
 	eslintTool,
 	stylelintTool,
+	// -- fixers: opinionated formatters last --
+	prettierTool,
 	// -- checkers --
 	editorconfigTool,
 	golangciTool,
