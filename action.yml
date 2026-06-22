@@ -62,4 +62,4 @@ runs:
   # Image tag is updated automatically by the release workflow on every push.
   # Inputs are passed to entrypoint.sh as INPUT_* environment variables automatically
   # by the Actions runner -- no args: list needed.
-  image: docker://ghcr.io/goeselt/pedant:1.2.3@sha256:a8c2800075e1630cc448d01f31c501712548a9ccb35ee5f753b8c19a109ffeae
+  image: docker://ghcr.io/goeselt/pedant:1.2.4@sha256:fe23f0a393554da228b0d79231e496dddae68245944a6065d3d39359d05ef6ef
