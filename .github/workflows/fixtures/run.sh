@@ -277,6 +277,7 @@ run_option_smoke_tests() {
     printf 'PASS: option smoke\n'
 
     run_fix_order_smoke_test
+    run_fix_convergence_smoke_test
     run_fix_ownership_smoke_test
 }
 
@@ -314,6 +315,45 @@ HEREDOC
     fi
     rm -rf "$tmp"
     printf 'PASS: fix ordering\n'
+}
+
+# run_fix_convergence_smoke_test: a single --fix run must converge when two
+# fixers interact.
+#
+# bad.md has a Markdown table whose column widths violate markdownlint MD060
+# (pipe alignment).  prettier reformats the table to aligned widths; afterwards
+# markdownlint finds no MD060 issues.  With a single fix+check cycle per tool
+# (old behaviour) markdownlint's check-pass ran on the pre-prettier table and
+# reported MD060.  With two-phase execution (fix-all, then check-all) both
+# fixers have already written their changes before any check-pass runs.
+run_fix_convergence_smoke_test() {
+    local tmp raw
+    tmp=$(mktemp -d)
+    # Table with compact separators and unequal cell widths.
+    # plainify text-expansion and markdownlint MD060 both modify the table;
+    # prettier must run last to produce a stable aligned format.
+    cat >"$tmp/bad.md" <<'HEREDOC'
+# Title
+
+| File | Responsibility |
+|---|---|
+| `src/extension.ts` | VS Code lifecycle, one active-line decoration, commands, cache invalidation. |
+| `src/git.ts` | Git subprocess calls, output parsing, repo/path safety boundaries. |
+| `src/display.ts` | Pure formatting for inline text, hover text, dates, and string hygiene. |
+HEREDOC
+    init_workspace "$tmp"
+
+    # One --fix run must converge: prettier and markdownlint both run in the
+    # fix phase before either reports findings.
+    raw=$(docker run --rm -v "$tmp":/work "$Image" --fix --pretty 2>/dev/null || true)
+    if ! printf '%s\n' "$raw" | jq -e '.status == "pass" and .total_findings == 0' >/dev/null; then
+        printf 'FAIL: fix convergence -- findings remain after single --fix run (multi-fixer interaction)\n' >&2
+        printf '%s\n' "$raw" | jq -S '.' >&2 || printf '%s\n' "$raw" >&2
+        rm -rf "$tmp"
+        return 1
+    fi
+    rm -rf "$tmp"
+    printf 'PASS: fix convergence\n'
 }
 
 # run_fix_ownership_smoke_test: --fix must not change file ownership.

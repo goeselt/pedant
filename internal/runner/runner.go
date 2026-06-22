@@ -283,34 +283,87 @@ func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cm
 	return cmd
 }
 
-// invokeBatch runs one fix+check cycle for a single batch of files.
+// runFixBatch executes the fix pass for one batch and restores file ownership
+// afterwards.  Errors from the tool itself are logged as warnings and do not
+// abort the subsequent check pass.
+func runFixBatch(ctx context.Context, def ToolDef, binary, workspace string, batch []string, log io.Writer, env []string) {
+	// Capture ownership before fix: some tools (e.g. shfmt) write via a
+	// temp file + rename, creating a new root-owned file inside the container.
+	savedStats := captureFileStat(workspace, batch)
+
+	fixCmd := newToolCommand(ctx, binary, def.Args(true, workspace, batch)...)
+	fixCmd.Dir = workspace
+	fixCmd.Env = env
+	var fixStderr limitedBuffer
+	fixStderr.limit = maxOutputBytes
+	fixCmd.Stderr = &fixStderr
+	if err := fixCmd.Run(); err != nil {
+		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
+				// Non-exit error (e.g. binary not found): log because the fixer could not run at all.
+				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass: %v\n", def.Name, err)
+			}
+			// ExitError: many fixers exit non-zero when they encounter issues even
+			// in fix mode (e.g. markdownlint reports fixed issues on stderr and exits 1).
+			// Suppress the stderr log here; the check pass reports what actually remains.
+		}
+	}
+
+	restoreFileStat(workspace, batch, savedStats)
+}
+
+// RunFixWithTimeout runs only the fix pass for def (no check pass, no findings).
+// Called during the first phase of a two-phase --fix run so that every fixer
+// has modified files before any tool's check pass reports findings.
+func RunFixWithTimeout(ctx context.Context, def ToolDef, workspace string, files []string, log io.Writer, timeout time.Duration) {
+	if !def.CanFix {
+		return
+	}
+	if def.Skip != nil && def.Skip(workspace) {
+		return
+	}
+
+	binary := def.Binary
+	if binary == "" {
+		binary = def.Name
+	}
+
+	batches := [][]string{files}
+	if !def.NoBatch {
+		batches = splitBatches(files)
+	}
+
+	env := filterEnv(os.Environ())
+
+	toolCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		toolCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
+
+	_, _ = fmt.Fprintf(log, "[%s] fixing %d file(s)...\n", def.Name, len(files))
+
+	for _, batch := range batches {
+		if toolCtx.Err() != nil {
+			break
+		}
+		runFixBatch(toolCtx, def, binary, workspace, batch, log, env)
+	}
+}
+
+// invokeBatch runs the check pass for a single batch of files.
+// When fix is true and def.CanFix, it also runs a fix pass first.
+// In the two-phase --fix flow this is called with fix=false so only the check
+// pass executes (the fix pass has already been done by RunFixWithTimeout).
 // Returns (findings, errMsg); errMsg != "" is a hard error that aborts batching.
 func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer, env []string) ([]Finding, string) {
 	if fix && def.CanFix {
-		// Capture ownership before fix: some tools (e.g. shfmt) write via
-		// a temp file + rename, which creates a new root-owned file inside
-		// the container.  We restore UID/GID/mode afterwards.
-		savedStats := captureFileStat(workspace, files)
-
-		fixCmd := newToolCommand(ctx, binary, def.Args(true, workspace, files)...)
-		fixCmd.Dir = workspace
-		fixCmd.Env = env
-		var fixStderr limitedBuffer
-		fixStderr.limit = maxOutputBytes
-		fixCmd.Stderr = &fixStderr
-		if err := fixCmd.Run(); err != nil {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return nil, "timed out"
-			}
-			var exitErr *exec.ExitError
-			if !errors.As(err, &exitErr) {
-				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass: %v\n", def.Name, err)
-			} else if msg := strings.TrimSpace(fixStderr.String()); msg != "" {
-				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass stderr: %s\n", def.Name, msg)
-			}
+		runFixBatch(ctx, def, binary, workspace, files, log, env)
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, "timed out"
 		}
-
-		restoreFileStat(workspace, files, savedStats)
 	}
 
 	// Check pass -- always runs; reports what remains (or all findings in check-only mode).
