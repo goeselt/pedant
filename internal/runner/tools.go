@@ -593,8 +593,13 @@ var actionlintTool = ToolDef{
 	Args: func(_ bool, workspace string, files []string) []string {
 		args := []string{"-no-color", "-format", "{{json .}}"}
 		cfgFile := workspaceConfigRel(workspace, ".github/actionlint.yaml", ".github/actionlint.yml", "actionlint.yaml", "actionlint.yml")
-		if cfgFile == "" {
+		usingBundled := cfgFile == ""
+		if usingBundled {
 			cfgFile = bundledConfig("/etc/pedant/actionlint/actionlint.yaml")
+			// The actionlint YAML config `ignore:` field has no effect on runner-label errors;
+			// only the -ignore CLI flag suppresses them.
+			// Apply it here when using the bundled config so custom self-hosted runner labels are not flagged.
+			args = append(args, "-ignore", `label ".+" is unknown`)
 		}
 		if cfgFile != "" {
 			args = append(args, "-config-file", cfgFile)
