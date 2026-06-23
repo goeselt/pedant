@@ -3,9 +3,6 @@
 # Baked into the container image at /etc/pedant/actionlint/actionlint.yaml.
 # Projects can override by placing their own .github/actionlint.yaml in the repository.
 
-ignore:
-  # Runner label validation is disabled: custom self-hosted runner label names
-  # are environment-specific and cannot be enumerated here. Any typos in
-  # GitHub-hosted runner labels (e.g. ubuntu-lates) will also go undetected;
-  # those are caught quickly at runtime when the job fails to queue.
-  - 'label ".+" is unknown'
+# Note: runner-label suppression is not configured here.
+# The actionlint YAML `ignore:` field has no effect on runner-label errors;
+# suppression is applied via the -ignore CLI flag in pedant's tool definition.

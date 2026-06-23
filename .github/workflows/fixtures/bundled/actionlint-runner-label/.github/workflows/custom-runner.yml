@@ -1,0 +1,11 @@
+---
+# Workflow with a custom self-hosted runner label.
+# Expected: no findings -- runner-label validation is disabled in the
+# bundled config because custom label names are environment-specific.
+name: custom-runner
+on: push
+jobs:
+  test:
+    runs-on: my-custom-self-hosted-runner
+    steps:
+      - run: echo hello
