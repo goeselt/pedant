@@ -23,6 +23,7 @@ var Registry = []ToolDef{
 	// -- fixers: content transforms and rule-based linters first --
 	plainifyTool,
 	shfmtTool,
+	taplo,
 	ruffFormatTool,
 	ruffTool,
 	textlintTool,
@@ -938,6 +939,49 @@ func parseRuff(stdout, stderr string, _ int, workspace string) ([]Finding, error
 			Col:     r.Location.Column,
 			Rule:    r.Code,
 			Message: r.Message,
+		})
+	}
+	return findings, nil
+}
+
+// -- taplo -------------------------------------------------------------------------------------------
+
+var taplo = ToolDef{
+	Name:                "taplo",
+	CanFix:              true,
+	Globs:               []string{"*.toml"},
+	FindWorkspaceConfig: makeConfigFinder(".taplo.toml", "taplo.toml"),
+	Args: func(fix bool, workspace string, files []string) []string {
+		args := []string{"format"}
+		if workspaceConfigRel(workspace, ".taplo.toml", "taplo.toml") == "" {
+			if cfg := bundledConfig("/etc/pedant/taplo/taplo.toml"); cfg != "" {
+				args = append(args, "--config", cfg)
+			}
+		}
+		if !fix {
+			args = append(args, "--check")
+		}
+		return append(args, files...)
+	},
+	Parse: parseTaplo,
+}
+
+// taplo format --check stderr: "... the file is not properly formatted path="/abs/path/to/file.toml""
+var taploRe = regexp.MustCompile(`not properly formatted path="([^"]+)"`)
+
+func parseTaplo(stdout, stderr string, exitCode int, workspace string) ([]Finding, error) {
+	if exitCode == 0 {
+		return nil, nil
+	}
+	var findings []Finding
+	for _, line := range strings.Split(stderr+stdout, "\n") {
+		m := taploRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		findings = append(findings, Finding{
+			File:    relativize(workspace, m[1]),
+			Message: "needs formatting",
 		})
 	}
 	return findings, nil
