@@ -6,7 +6,7 @@
       "files": [
         "main.go"
       ],
-      "finding_count": 6,
+      "finding_count": 7,
       "has_error": false,
       "name": "golangci-lint",
       "rules": [
@@ -18,5 +18,5 @@
       "status": "fail"
     }
   ],
-  "total_findings": 6
+  "total_findings": 7
 }

@@ -3,7 +3,6 @@
 // Expected finding:
 //   prettier  -- "needs formatting" (double space before return value)
 
-function foo() {
+export function foo() {
   return  1
 }
-console.log(foo())

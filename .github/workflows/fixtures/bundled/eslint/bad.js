@@ -5,7 +5,7 @@
 //   eslint eqeqeq                                -- '==' instead of '==='
 //   eslint no-console                            -- console.log calls
 //   unicorn/no-negated-condition                 -- !flag with else branch
-//   unicorn/prefer-logical-operator-over-ternary -- ternary expressible as ??
+//   unicorn/prefer-logical-operator-over-ternary -- ternary expressible as ||
 
 var x = 1
 var y = 2
@@ -21,6 +21,6 @@ if (!flag) {
   console.log('on')
 }
 
-const val = null
-const out = val !== null ? val : 0
+const val = 'hello'
+const out = val ? val : 'default'
 console.log(out)
