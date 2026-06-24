@@ -2,6 +2,7 @@
 package discover
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -47,7 +48,7 @@ func Files(workspace string, paths, ignore []string) ([]string, error) {
 		}
 	}
 
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(context.Background(), "git", args...)
 	cmd.Dir = workspace
 
 	out, err := cmd.Output()

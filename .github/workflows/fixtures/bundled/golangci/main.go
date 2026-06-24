@@ -2,15 +2,28 @@
 //
 // Expected findings:
 //
-//	golangci-lint errcheck  -- error return value of f.Close() not checked
+//	golangci-lint dupword  -- duplicate word in comment ("the the")
+//	golangci-lint errcheck -- unchecked error returns (openFile call, f.Close, http.Get)
+//	golangci-lint nilerr   -- err != nil branch returns nil instead of err
+//	golangci-lint noctx    -- http.Get does not accept a context
 package main
 
-import "os"
+import (
+	"net/http"
+	"os"
+)
 
-func main() {
-	f, err := os.Open("/tmp/test")
+// openFile opens the the file at path.
+func openFile(path string) error {
+	f, err := os.Open(path)
 	if err != nil {
-		return
+		return nil
 	}
 	f.Close()
+	return nil
+}
+
+func main() {
+	openFile("/tmp/test")
+	http.Get("http://example.com")
 }

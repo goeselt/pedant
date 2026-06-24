@@ -5,12 +5,15 @@ linters:
   default: none
   enable:
     - bodyclose
+    - dupword
     - errcheck
     - errorlint
     - gocritic
     - govet
     - ineffassign
     - misspell
+    - nilerr
+    - noctx
     - nolintlint
     - prealloc
     - revive
