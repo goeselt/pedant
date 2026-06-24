@@ -1,0 +1,7 @@
+# Default taplo configuration.
+# Baked into the container image at /etc/pedant/taplo/taplo.toml.
+# Projects can override by placing their own .taplo.toml or taplo.toml in the repository.
+
+[formatting]
+column_width = 120
+indent_string = "  "

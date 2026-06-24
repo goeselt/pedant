@@ -59,6 +59,7 @@ Use outputs to drive downstream steps:
 | --------------- | -------------------------------------------------------------------------------- | ------------------ |
 | `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 | `shfmt`         | Shell script formatting                                                          | :white_check_mark: |
+| `taplo`         | TOML formatting                                                                  | :white_check_mark: |
 | `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
 | `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
@@ -107,6 +108,7 @@ project-specific rules.
 | `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                                                                            |
 | `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                                                                  |
 | `shfmt`         | (no config)                                                                                                                                      |
+| `taplo`         | `.taplo.toml`, `taplo.toml`                                                                                                                      |
 | `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
 | `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
 | `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |

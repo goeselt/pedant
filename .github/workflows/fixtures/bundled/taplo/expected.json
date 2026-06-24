@@ -1,0 +1,17 @@
+{
+  "files_discovered": 1,
+  "status": "fail",
+  "tools": [
+    {
+      "files": [
+        "bad.toml"
+      ],
+      "finding_count": 1,
+      "has_error": false,
+      "name": "taplo",
+      "rules": [],
+      "status": "fail"
+    }
+  ],
+  "total_findings": 1
+}

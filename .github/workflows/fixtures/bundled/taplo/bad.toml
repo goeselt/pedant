@@ -1,0 +1,8 @@
+# Intentionally malformed TOML file for pedant e2e testing.
+#
+# Expected findings:
+#   taplo -- extra spaces around = (needs formatting)
+
+[table]
+key    =   "value"
+other_key="test"

@@ -165,6 +165,20 @@ RUN curl -fsSL -o /tmp/plainify.tar.gz \
     && rm /tmp/plainify.tar.gz \
     && plainify --version
 
+# -- TOML formatter --
+
+# renovate: datasource=github-releases depName=tamasfe/taplo
+ARG TAPLO_VERSION=0.10.0
+ARG TAPLO_SHA256=8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156
+
+RUN curl -fsSL -o /tmp/taplo.gz \
+        "https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz" \
+    && printf '%s  /tmp/taplo.gz\n' "${TAPLO_SHA256}" | sha256sum -c - \
+    && gunzip -c /tmp/taplo.gz > /usr/local/bin/taplo \
+    && chmod 755 /usr/local/bin/taplo \
+    && rm /tmp/taplo.gz \
+    && taplo --version
+
 # -- Remove curl now that all downloads are done --
 RUN apk del curl && rm -rf /var/cache/apk/*
 
