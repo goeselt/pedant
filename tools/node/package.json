@@ -1,6 +1,6 @@
 {
   "name": "pedant-node-tools",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Locked Node.js toolchain dependencies for the pedant Docker image.",
   "dependencies": {
