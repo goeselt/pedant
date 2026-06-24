@@ -1,6 +1,7 @@
 package discover
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -277,7 +278,7 @@ func TestFilesSkipsSymlinks(t *testing.T) {
 
 func gitRun(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := exec.CommandContext(context.Background(), args[0], args[1:]...)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%v: %v\n%s", args, err, out)

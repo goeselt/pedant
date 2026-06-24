@@ -12,5 +12,5 @@ var count: number = 1
 const limit: number = 2
 
 if (count == limit) {
-  console.log('reached limit')
+  // count reached limit
 }

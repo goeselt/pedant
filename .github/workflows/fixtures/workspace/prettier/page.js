@@ -5,5 +5,4 @@
 //   prettier  -- "needs formatting"
 // No findings with bundled config.
 
-const x = 'long string here that fits 120 but not 40 columns easily'
-console.log(x)
+export const x = 'long string here that fits 120 but not 40 columns easily'

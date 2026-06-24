@@ -1,13 +1,21 @@
 # pedant
 
-A Docker-based linting and formatting orchestrator for Git repositories. It runs several tools in a single container
-pass, reports findings as JSON on stdout by default, and can autofix what is fixable. No tool installations required --
-pull the image and run.
+One GitHub Action. Sixteen linters and formatters. Zero per-repository setup.
 
-Pedant fills the gap between no automated checks and a full quality pipeline. One action replaces fifteen separate tool
-integrations: no per-tool installation, no per-repository configuration overhead, and no version drift between
-repositories. It covers the checks that are cheap to run on every commit -- formatting, idiomatic lint, and style
-conventions -- and is intentionally complementary to, not a replacement for, security-focused tooling.
+Pedant runs formatting, idiomatic lint, and style checks for Go, Python, JS/TS, CSS, Shell, Markdown, YAML, TOML,
+Dockerfile, and GitHub Actions in a single container pass. It occupies a different position than tools like
+[mega-linter](https://github.com/oxsecurity/megalinter) or [super-linter](https://github.com/super-linter/super-linter):
+
+- **Narrow scope by design.** A curated set of sixteen tools with pre-tuned defaults rather than a catalogue of
+  hundreds. Security scanning, dependency analysis, and IaC misconfiguration belong in dedicated tools with dedicated
+  workflows -- pedant stays focused on the checks worth running on every commit.
+- **Zero required configuration.** Bundled defaults work for most repositories without adding any config files. Drop a
+  tool-specific file in the repository root to override exactly one tool; everything else keeps using the bundled
+  default.
+- **No tool installation in CI.** One `docker pull` covers all sixteen tools at pinned versions. No `setup-*` action per
+  tool, no per-repository version pinning, no drift between repositories over time.
+- **Autofix included.** `fix: 'true'` applies all fixable findings in the same pass. Fixers run before checkers, so the
+  check phase always sees the post-fix state.
 
 ## Quick Start
 
@@ -59,6 +67,7 @@ Use outputs to drive downstream steps:
 | --------------- | -------------------------------------------------------------------------------- | ------------------ |
 | `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 | `shfmt`         | Shell script formatting                                                          | :white_check_mark: |
+| `taplo`         | TOML formatting                                                                  | :white_check_mark: |
 | `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
 | `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
@@ -107,6 +116,7 @@ project-specific rules.
 | `editorconfig`  | `.editorconfig-checker.json`, `.ecrc`                                                                                                            |
 | `prettier`      | `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `prettier.config.js`, ...                                                                  |
 | `shfmt`         | (no config)                                                                                                                                      |
+| `taplo`         | `.taplo.toml`, `taplo.toml`                                                                                                                      |
 | `textlint`      | `.textlintrc`, `.textlintrc.json`, `.textlintrc.yaml`, `.textlintrc.yml`                                                                         |
 | `markdownlint`  | `.markdownlint-cli2.yaml`, `.markdownlint-cli2.yml`, `.markdownlint-cli2.jsonc`, `.markdownlint.yaml`, `.markdownlint.yml`, `.markdownlint.json` |
 | `eslint`        | `eslint.config.js`, `eslint.config.mjs`, `eslint.config.cjs`, `eslint.config.ts`, ...                                                            |
