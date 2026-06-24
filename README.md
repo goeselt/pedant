@@ -4,14 +4,14 @@ One GitHub Action. Sixteen linters and formatters. Zero per-repository setup.
 
 Pedant runs formatting, idiomatic lint, and style checks for Go, Python, JS/TS, CSS, Shell, Markdown, YAML, TOML,
 Dockerfile, and GitHub Actions in a single container pass. It occupies a different position than tools like
-[mega-linter](https://github.com/oxsecurity/megalinter) or
-[super-linter](https://github.com/super-linter/super-linter):
+[mega-linter](https://github.com/oxsecurity/megalinter) or [super-linter](https://github.com/super-linter/super-linter):
 
 - **Narrow scope by design.** A curated set of sixteen tools with pre-tuned defaults rather than a catalogue of
   hundreds. Security scanning, dependency analysis, and IaC misconfiguration belong in dedicated tools with dedicated
   workflows -- pedant stays focused on the checks worth running on every commit.
 - **Zero required configuration.** Bundled defaults work for most repositories without adding any config files. Drop a
-  tool-specific file in the repo root to override exactly one tool; everything else keeps using the bundled default.
+  tool-specific file in the repository root to override exactly one tool; everything else keeps using the bundled
+  default.
 - **No tool installation in CI.** One `docker pull` covers all sixteen tools at pinned versions. No `setup-*` action per
   tool, no per-repository version pinning, no drift between repositories over time.
 - **Autofix included.** `fix: 'true'` applies all fixable findings in the same pass. Fixers run before checkers, so the
