@@ -1,13 +1,21 @@
 # pedant
 
-A Docker-based linting and formatting orchestrator for Git repositories. It runs several tools in a single container
-pass, reports findings as JSON on stdout by default, and can autofix what is fixable. No tool installations required --
-pull the image and run.
+One GitHub Action. Sixteen linters and formatters. Zero per-repository setup.
 
-Pedant fills the gap between no automated checks and a full quality pipeline. One action replaces fifteen separate tool
-integrations: no per-tool installation, no per-repository configuration overhead, and no version drift between
-repositories. It covers the checks that are cheap to run on every commit -- formatting, idiomatic lint, and style
-conventions -- and is intentionally complementary to, not a replacement for, security-focused tooling.
+Pedant runs formatting, idiomatic lint, and style checks for Go, Python, JS/TS, CSS, Shell, Markdown, YAML, TOML,
+Dockerfile, and GitHub Actions in a single container pass. It occupies a different position than tools like
+[mega-linter](https://github.com/oxsecurity/megalinter) or
+[super-linter](https://github.com/super-linter/super-linter):
+
+- **Narrow scope by design.** A curated set of sixteen tools with pre-tuned defaults rather than a catalogue of
+  hundreds. Security scanning, dependency analysis, and IaC misconfiguration belong in dedicated tools with dedicated
+  workflows -- pedant stays focused on the checks worth running on every commit.
+- **Zero required configuration.** Bundled defaults work for most repositories without adding any config files. Drop a
+  tool-specific file in the repo root to override exactly one tool; everything else keeps using the bundled default.
+- **No tool installation in CI.** One `docker pull` covers all sixteen tools at pinned versions. No `setup-*` action per
+  tool, no per-repository version pinning, no drift between repositories over time.
+- **Autofix included.** `fix: 'true'` applies all fixable findings in the same pass. Fixers run before checkers, so the
+  check phase always sees the post-fix state.
 
 ## Quick Start
 
