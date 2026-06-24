@@ -57,21 +57,21 @@ Use outputs to drive downstream steps:
 
 | Tool            | Checks                                                                           | Autofix            |
 | --------------- | -------------------------------------------------------------------------------- | ------------------ |
-| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules |                    |
-| `prettier`      | Formatting of JSON, YAML, Markdown, HTML, CSS, JS/TS                             | :white_check_mark: |
+| `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 | `shfmt`         | Shell script formatting                                                          | :white_check_mark: |
+| `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
+| `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
 | `textlint`      | Prose style and terminology in Markdown                                          | :white_check_mark: |
 | `markdownlint`  | Markdown structure and style                                                     | :white_check_mark: |
 | `eslint`        | JavaScript / TypeScript lint                                                     | :white_check_mark: |
 | `stylelint`     | CSS lint                                                                         | :white_check_mark: |
-| `ruff-format`   | Python code formatting                                                           | :white_check_mark: |
-| `ruff`          | Python lint (flake8, isort, pycodestyle, and more)                               | :white_check_mark: |
+| `prettier`      | Formatting of JSON, YAML, Markdown, HTML, CSS, JS/TS                             | :white_check_mark: |
+| `editorconfig`  | Indentation, charset, end-of-line, trailing whitespace per `.editorconfig` rules |                    |
+| `golangci-lint` | Go static analysis                                                               |                    |
 | `hadolint`      | Dockerfile best practices                                                        |                    |
 | `shellcheck`    | Shell script correctness                                                         |                    |
 | `yamllint`      | YAML syntax and style                                                            |                    |
 | `actionlint`    | GitHub Actions workflow correctness                                              |                    |
-| `golangci-lint` | Go static analysis                                                               |                    |
-| `plainify`      | Non-ASCII typographic characters, CRLF, invisible and bidi characters            | :white_check_mark: |
 
 Tools only run when matching files are present. A repository without Go files, for example, will skip `golangci-lint`
 automatically.
