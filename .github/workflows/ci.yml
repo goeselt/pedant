@@ -81,7 +81,6 @@ jobs:
         if: always()
         uses: goeselt/remark@7b12cbf2a7eabecc7fed7189ba79c5cf6c484952 # v1.0.4
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-key: pedant-self-check
           body-file: pedant-self-check.md
           skip-unchanged: true
