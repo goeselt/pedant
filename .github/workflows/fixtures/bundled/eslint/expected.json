@@ -6,15 +6,18 @@
       "files": [
         "bad.js"
       ],
-      "finding_count": 3,
+      "finding_count": 9,
       "has_error": false,
       "name": "eslint",
       "rules": [
         "eqeqeq",
-        "no-var"
+        "no-console",
+        "no-var",
+        "unicorn/no-negated-condition",
+        "unicorn/prefer-logical-operator-over-ternary"
       ],
       "status": "fail"
     }
   ],
-  "total_findings": 3
+  "total_findings": 9
 }
