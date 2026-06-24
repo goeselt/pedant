@@ -10,6 +10,7 @@ select = [
     "F",   # pyflakes
     "W",   # pycodestyle warnings
     "I",   # isort (import sorting)
+    "C",   # flake8-comprehensions
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
     "SIM", # flake8-simplify

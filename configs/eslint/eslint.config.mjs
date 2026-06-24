@@ -40,6 +40,7 @@ export default [
     },
     rules: {
       eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-console': 'warn',
       'no-constant-binary-expression': 'error',
       'no-constructor-return': 'error',
       'no-duplicate-imports': 'error',
@@ -53,6 +54,7 @@ export default [
       'no-return-assign': 'error',
       'no-self-compare': 'error',
       'no-sequences': 'error',
+      'no-shadow': 'error',
       'no-template-curly-in-string': 'warn',
       'no-throw-literal': 'error',
       'no-unmodified-loop-condition': 'error',
@@ -68,6 +70,7 @@ export default [
       'prefer-arrow-callback': 'error',
       'prefer-const': 'error',
       'prefer-destructuring': ['warn', { object: true, array: false }],
+      'prefer-promise-reject-errors': 'error',
       'prefer-rest-params': 'error',
       'prefer-spread': 'error',
       'prefer-template': 'error',
@@ -97,6 +100,13 @@ export default [
     ...config,
     files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
   })),
+
+  {
+    files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'error',
+    },
+  },
 
   // JSX: the default espree parser only accepts JSX syntax when explicitly
   // enabled, so scope it to .jsx and leave plain .js untouched.

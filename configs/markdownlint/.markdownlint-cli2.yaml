@@ -30,7 +30,7 @@ config:
   MD025:
     front_matter_title: ''
   MD026:
-    punctuation: '.,;:!?'
+    punctuation: '.,;:!'
   MD029:
     style: ordered
   MD033:

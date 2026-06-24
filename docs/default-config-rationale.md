@@ -131,7 +131,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | `MD022 lines_above/below: 1` | — | Exactly one blank line before and after a heading. Zero is visually cramped; two is excessive. |
 | `MD024 siblings_only: true` | — | Allows identical heading text in different sections (e.g., "Overview" under different top-level headings). Duplicate headings within the same parent are still flagged. |
 | `MD025 front_matter_title: ''` | — | Suppresses the "first line must be a heading" check when the title is already declared in YAML front matter. |
-| `MD026 punctuation: '.,;:!?'` | — | Headings should be noun phrases, not sentences. Trailing punctuation (including `?`) is a signal that the heading was written as a question or statement. |
+| `MD026 punctuation: '.,;:!'` | — | Headings should be noun phrases, not sentences. Trailing `.`, `,`, `;`, `:`, `!` is almost always a mistake. `?` is excluded because question headings (e.g., `## What is pedant?`) are a common and legitimate documentation pattern. |
 | `MD029 style: ordered` | — | Ordered lists must use sequential numbers (1, 2, 3). Using `1.` for all items works in most renderers but hides the intended order. |
 | `MD033 allowed_elements` | `br, details, kbd, sub, summary, sup` | A minimal set of HTML elements with no Markdown equivalent: `<br>` (hard line break), `<details>`/`<summary>` (collapsible sections), `<kbd>` (keyboard shortcuts), `<sub>`/`<sup>` (subscript/superscript). |
 | `MD035 style: '---'` | — | Consistent horizontal rule syntax across all files. |
@@ -159,6 +159,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | Rule | Severity | Rationale |
 | --- | --- | --- |
 | `eqeqeq` | error (`null: 'ignore'`) | Strict equality everywhere. The `null: 'ignore'` exception allows `== null` as an idiomatic check for both `null` and `undefined`. |
+| `no-console` | warn | `console.*` calls are almost always debug artifacts. A warning rather than error allows intentional logging in server-side scripts without requiring a suppression comment. |
 | `no-constant-binary-expression` | error | Expressions such as `a \|\| true` are always the same value. Almost always a logical mistake. |
 | `no-constructor-return` | error | Returning a value from a constructor replaces the newly constructed object. Almost never intentional. |
 | `no-duplicate-imports` | error | Multiple import declarations from the same module should be merged into one. |
@@ -172,6 +173,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | `no-return-assign` | error | Assignment inside a `return` is almost always a typo for comparison (`=` vs `===`). |
 | `no-self-compare` | error | `x === x` is always `true` and is almost certainly a mistake (or a `NaN` check that should use `Number.isNaN`). |
 | `no-sequences` | error | The comma operator evaluates both operands and returns the last. Rarely intended outside minified code. |
+| `no-shadow` | error | A variable declaration that shadows an outer-scope variable makes the outer variable inaccessible and is a frequent source of subtle bugs in callbacks and nested functions. |
 | `no-template-curly-in-string` | warn | `"${x}"` in a regular string literal is probably a missing backtick. A warning covers typos without being noisy. |
 | `no-throw-literal` | error | Only `Error` objects (or subclasses) should be thrown. Throwing strings or plain objects makes `catch` handling inconsistent. |
 | `no-unmodified-loop-condition` | error | A loop condition that never changes causes an infinite loop or dead code. |
@@ -187,6 +189,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | `prefer-arrow-callback` | error | Arrow functions are shorter and do not rebind `this`. |
 | `prefer-const` | error | A binding that is never reassigned should be `const`. Makes intent explicit and prevents accidental reassignment. |
 | `prefer-destructuring` | warn (`object: true, array: false`) | `const { x } = obj` is clearer than `const x = obj.x` for objects. Array destructuring is position-based and can hurt readability; it is not enforced. |
+| `prefer-promise-reject-errors` | error | `Promise.reject` must be called with an `Error` object (or subclass). Rejecting with a string or plain object makes `catch` handlers inconsistent — callers cannot rely on `.message`, `.stack`, or `instanceof Error`. |
 | `prefer-rest-params` | error | `function f(...args)` is explicit. `arguments` is an implicit, array-like object with surprising behavior. |
 | `prefer-spread` | error | `fn(...args)` is explicit. `fn.apply(ctx, args)` is verbose and requires a context argument. |
 | `prefer-template` | error | Template literals are clearer than concatenation for interpolated strings. |
@@ -209,6 +212,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | Setting | Value | Rationale |
 | --- | --- | --- |
 | `tseslint.configs.recommended` scoped to `.ts,.tsx,.mts,.cts` | — | Enables the TypeScript parser and plugin rules for TypeScript files only. The non-type-checked `recommended` set is used because pedant cannot assume a `tsconfig.json` exists in every repository. Type-aware rules (`recommended-type-checked`) require a project reference and belong in the project's own config. |
+| `@typescript-eslint/consistent-type-imports` | error | Type-only imports must use `import type { Foo }`. This allows bundlers and the TypeScript compiler to elide the import entirely at emit time, and makes the intent explicit: the import exists solely for the type checker. |
 
 **JSX section (`.jsx`)**
 
@@ -240,6 +244,7 @@ Explicitly restates the global values so the Markdown behavior is visible and se
 | `line-length = 120` | — | Matches `printWidth` in prettier. PEP 8's 79-column limit is too narrow for modern screens. 120 is a widely used alternative that avoids horizontal scroll on standard monitors. |
 | `lint.select: E, F, W` | pycodestyle + pyflakes | Essential correctness rules. `E`/`W` cover style errors and warnings; `F` covers undefined names, unused imports, and other semantic mistakes. |
 | `lint.select: I` | isort | Enforces a consistent import order. Reduces diff noise from unsorted imports. |
+| `lint.select: C` | flake8-comprehensions | Flags verbose equivalents of comprehensions and built-in calls: `list(x for x in y)` → `[x for x in y]`, `dict([(k, v)])` → `{k: v}`, etc. Keeps Python code idiomatic. |
 | `lint.select: UP` | pyupgrade | Flags syntax that can be replaced with a modern Python equivalent (e.g., `f-strings` over `.format()`, `X \| Y` over `Union[X, Y]`). |
 | `lint.select: B` | flake8-bugbear | Opinionated correctness rules: mutable default arguments, `assert` in tests, loop variable capture, etc. |
 | `lint.select: SIM` | flake8-simplify | Suggests simpler equivalents: `if x == True` → `if x`, nested `with` → combined `with`, etc. |
