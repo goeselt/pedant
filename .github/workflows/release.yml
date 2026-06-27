@@ -43,7 +43,7 @@ jobs:
 
       - id: intent
         name: Intent Release
-        uses: goeselt/intent@50ade3c261510089172bec3a8ebffe30a963782a # v1.2.0
+        uses: goeselt/intent@2dd369992f542d83bdc27975b078e1242eb07190 # v1.2.2
         with:
           initial-version: '1.0.0'
 
@@ -99,7 +99,7 @@ jobs:
 
       - name: Attest Build Provenance
         if: steps.intent.outputs.release-needed == 'true'
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ghcr.io/goeselt/pedant
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -120,7 +120,7 @@ jobs:
 
       - name: Commit
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/scribe@4628c4f2ebb92e31e989b220b1a82ba5132d0a3f # v1.2.1
+        uses: goeselt/scribe@732387b7af0ebcabc4653253cb5865a31a3cd485 # v1.2.2
         with:
           files: |
             action.yml
@@ -134,7 +134,7 @@ jobs:
 
       - name: Ship
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/dispatch@537bfa0724a8de8b2a8e282458944a9cf368f740 # v1.2.3
+        uses: goeselt/dispatch@177d405019f83bf8728e3a132e2b2565d6eacd47 # v1.3.5
         with:
           release-tag: ${{ steps.intent.outputs.release-tag }}
           major-tag: ${{ steps.intent.outputs.major-tag }}
