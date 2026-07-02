@@ -3,32 +3,78 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/goeselt/pedant/internal/runner"
 )
 
-// validateSummaryFile returns an error if summaryFile resolves to a path outside
-// workspace. An empty summaryFile is accepted.
-func validateSummaryFile(workspace, summaryFile string) error {
+// resolveSummaryFile resolves summaryFile against workspace and returns the
+// absolute path to write to. Relative paths are workspace-relative (matching
+// the action input contract). Symlinks in the parent directory are resolved
+// before the containment check so that a symlinked directory planted inside
+// the workspace cannot redirect the write outside of it.
+// An empty summaryFile returns "".
+func resolveSummaryFile(workspace, summaryFile string) (string, error) {
 	if summaryFile == "" {
-		return nil
+		return "", nil
 	}
-	abs, err := filepath.Abs(summaryFile)
-	if err != nil {
-		return fmt.Errorf("summary-file: %w", err)
+	abs := summaryFile
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(workspace, abs)
 	}
-	rel, err := filepath.Rel(workspace, abs)
+	abs = filepath.Clean(abs)
+
+	realWorkspace, err := filepath.EvalSymlinks(workspace)
 	if err != nil {
-		return fmt.Errorf("summary-file %q: %w", summaryFile, err)
+		return "", fmt.Errorf("summary-file: resolve workspace: %w", err)
+	}
+	// The summary file itself may not exist yet, but its parent directory must
+	// exist for the write to succeed; resolving it up front also fails early
+	// instead of after all tools have run.
+	realDir, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return "", fmt.Errorf("summary-file %q: %w", summaryFile, err)
+	}
+	resolved := filepath.Join(realDir, filepath.Base(abs))
+
+	rel, err := filepath.Rel(realWorkspace, resolved)
+	if err != nil {
+		return "", fmt.Errorf("summary-file %q: %w", summaryFile, err)
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("summary-file %q is outside the workspace %q", summaryFile, workspace)
+		return "", fmt.Errorf("summary-file %q is outside the workspace %q", summaryFile, workspace)
 	}
-	return nil
+	// Fail fast when the target itself is a symlink instead of after all tools
+	// have run. writeSummaryFile enforces the same rule with O_NOFOLLOW, which
+	// also covers a link created between this check and the write.
+	if info, err := os.Lstat(resolved); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("summary-file %q is a symlink; refusing to follow it", summaryFile)
+	}
+	return resolved, nil
+}
+
+// writeSummaryFile writes report to path without following a symlink at path.
+// The workspace content is untrusted: a symlink planted at the configured
+// summary path could otherwise redirect the write to an arbitrary file, such
+// as the GitHub Actions file-command files mounted into the container.
+func writeSummaryFile(path, report string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NOFOLLOW, 0o644)
+	if err != nil {
+		if errors.Is(err, syscall.ELOOP) {
+			return fmt.Errorf("summary-file %q is a symlink; refusing to follow it", path)
+		}
+		return err
+	}
+	if _, err := f.WriteString(report); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func validateSummaryOptions(summaryGithubStep bool) error {
@@ -87,7 +133,7 @@ func emitOutput(out output, pretty bool, summaryMarkdown bool, summaryFile strin
 		}
 
 		if summaryFile != "" {
-			if err := os.WriteFile(summaryFile, []byte(report), 0o644); err != nil {
+			if err := writeSummaryFile(summaryFile, report); err != nil {
 				fatal("write summary file: %v", err)
 			}
 		}
@@ -141,7 +187,7 @@ func renderMarkdownSummary(out output) string {
 	fmt.Fprintln(&b, "| Tool | Status | Findings |")
 	fmt.Fprintln(&b, "| --- | --- | ---: |")
 	for _, result := range out.Tools {
-		fmt.Fprintf(&b, "| `%s` | `%s` | %d |\n", tableText(result.Tool), tableText(result.Status), len(result.Findings))
+		fmt.Fprintf(&b, "| <code>%s</code> | <code>%s</code> | %d |\n", htmlCodeText(result.Tool), htmlCodeText(result.Status), len(result.Findings))
 	}
 
 	for _, result := range out.Tools {
@@ -163,8 +209,8 @@ func renderMarkdownSummary(out output) string {
 		for _, finding := range result.Findings {
 			fmt.Fprintf(
 				&b,
-				"| `%s` | %s | %s |\n",
-				tableText(location(finding)),
+				"| <code>%s</code> | %s | %s |\n",
+				htmlCodeText(location(finding)),
 				ruleCell(finding),
 				tableText(finding.Message),
 			)
@@ -212,26 +258,36 @@ func markdownHeading(s string) string {
 
 // tableText prepares s for use as plain text in a GFM table cell.
 // HTML special characters are escaped so that tool output cannot inject markup.
-// Note: content placed inside backtick code spans is already protected from HTML
-// interpretation by the browser, but we escape anyway for defence in depth.
+// Markdown delimiters (backticks, brackets) are escaped as numeric character
+// references: entity references render as literal text and cannot open code
+// spans, links, or images, so attacker-influenced tool output (file names,
+// lint messages) cannot inject links into PR comments or step summaries.
 func tableText(s string) string {
 	s = strings.ReplaceAll(s, "\r", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "`", "&#96;")
+	s = strings.ReplaceAll(s, "[", "&#91;")
+	s = strings.ReplaceAll(s, "]", "&#93;")
 	s = strings.ReplaceAll(s, "|", `\|`)
 	return strings.TrimSpace(s)
 }
 
 // htmlCodeText prepares s for use inside a <code>...</code> HTML element,
 // including inside GFM table cells where a bare | would split a column.
+// Markdown inline parsing still applies between inline HTML tags, so Markdown
+// delimiters are escaped the same way as in tableText.
 func htmlCodeText(s string) string {
 	s = strings.ReplaceAll(s, "\r", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "`", "&#96;")
+	s = strings.ReplaceAll(s, "[", "&#91;")
+	s = strings.ReplaceAll(s, "]", "&#93;")
 	s = strings.ReplaceAll(s, "|", "&#124;")
 	return strings.TrimSpace(s)
 }

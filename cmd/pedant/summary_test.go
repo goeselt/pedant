@@ -67,11 +67,11 @@ func TestRenderMarkdownSummaryFindingsAndErrors(t *testing.T) {
 		"- Files checked: 3",
 		"- Tools run: 0",
 		"- Findings: 2",
-		"| `eslint` | `fail` | 2 |",
-		"| `actionlint` | `error` | 0 |",
+		"| <code>eslint</code> | <code>fail</code> | 2 |",
+		"| <code>actionlint</code> | <code>error</code> | 0 |",
 		"### eslint",
-		"| `src/app.ts:12:5` | <code>no-unused-vars</code> | foo is defined but never used |",
-		"| `src/table.ts:4` | <code>custom&#124;rule</code> | message with \\| pipe |",
+		"| <code>src/app.ts:12:5</code> | <code>no-unused-vars</code> | foo is defined but never used |",
+		"| <code>src/table.ts:4</code> | <code>custom&#124;rule</code> | message with \\| pipe |",
 		"### actionlint",
 		"Error: <code>could not parse output</code>",
 	} {
@@ -400,10 +400,16 @@ func TestRenderMarkdownSummaryNoWorkspaceConfigs(t *testing.T) {
 	}
 }
 
-func TestValidateSummaryFile(t *testing.T) {
+func TestResolveSummaryFile(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workspace, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(workspace, "sub"), filepath.Join(workspace, "link.md")); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name        string
@@ -411,23 +417,109 @@ func TestValidateSummaryFile(t *testing.T) {
 		wantErr     bool
 	}{
 		{name: "empty allowed", summaryFile: "", wantErr: false},
-		{name: "file in workspace", summaryFile: filepath.Join(workspace, "summary.md"), wantErr: false},
-		{name: "nested in workspace", summaryFile: filepath.Join(workspace, "sub", "report.md"), wantErr: false},
+		{name: "absolute file in workspace", summaryFile: filepath.Join(workspace, "summary.md"), wantErr: false},
+		{name: "relative resolves against workspace", summaryFile: "summary.md", wantErr: false},
+		{name: "nested in existing subdirectory", summaryFile: filepath.Join(workspace, "sub", "report.md"), wantErr: false},
+		{name: "nested in missing subdirectory", summaryFile: filepath.Join(workspace, "missing", "report.md"), wantErr: true},
+		{name: "symlink target", summaryFile: "link.md", wantErr: true},
 		{name: "one level up", summaryFile: filepath.Join(workspace, "..", "summary.md"), wantErr: true},
+		{name: "relative escape", summaryFile: filepath.Join("..", "summary.md"), wantErr: true},
 		{name: "absolute outside workspace", summaryFile: filepath.Join(filepath.Dir(workspace), "outside.md"), wantErr: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateSummaryFile(workspace, tc.summaryFile)
+			resolved, err := resolveSummaryFile(workspace, tc.summaryFile)
 			if tc.wantErr && err == nil {
-				t.Fatalf("validateSummaryFile(%q, %q): expected error, got nil", workspace, tc.summaryFile)
+				t.Fatalf("resolveSummaryFile(%q, %q): expected error, got nil", workspace, tc.summaryFile)
 			}
 			if !tc.wantErr && err != nil {
-				t.Fatalf("validateSummaryFile(%q, %q): unexpected error: %v", workspace, tc.summaryFile, err)
+				t.Fatalf("resolveSummaryFile(%q, %q): unexpected error: %v", workspace, tc.summaryFile, err)
+			}
+			if err == nil && tc.summaryFile != "" && !filepath.IsAbs(resolved) {
+				t.Fatalf("resolveSummaryFile(%q, %q) = %q, want absolute path", workspace, tc.summaryFile, resolved)
 			}
 		})
+	}
+}
+
+func TestResolveSummaryFileRelativeUsesWorkspaceNotCwd(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	resolved, err := resolveSummaryFile(workspace, "summary.md")
+	if err != nil {
+		t.Fatalf("resolveSummaryFile: %v", err)
+	}
+	realWorkspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(realWorkspace, "summary.md")
+	if resolved != want {
+		t.Fatalf("resolveSummaryFile resolved to %q, want %q", resolved, want)
+	}
+}
+
+func TestResolveSummaryFileRejectsSymlinkedDirEscape(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	outside := t.TempDir()
+	// A directory symlink inside the workspace pointing outside of it: the
+	// lexical path stays inside, the resolved path does not.
+	if err := os.Symlink(outside, filepath.Join(workspace, "reports")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	if _, err := resolveSummaryFile(workspace, filepath.Join("reports", "summary.md")); err == nil {
+		t.Fatal("resolveSummaryFile must reject a path whose directory is a symlink out of the workspace")
+	}
+}
+
+func TestWriteSummaryFile(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "summary.md")
+	if err := writeSummaryFile(path, "## Pedant Summary\n"); err != nil {
+		t.Fatalf("writeSummaryFile: %v", err)
+	}
+	// Overwriting an existing regular file must work (e.g. re-run in the same workspace).
+	if err := writeSummaryFile(path, "## Second Run\n"); err != nil {
+		t.Fatalf("writeSummaryFile overwrite: %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "## Second Run\n" {
+		t.Fatalf("summary content = %q, want overwritten content", content)
+	}
+}
+
+func TestWriteSummaryFileRejectsSymlink(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "victim.txt")
+	if err := os.WriteFile(victim, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "summary.md")
+	if err := os.Symlink(victim, link); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	if err := writeSummaryFile(link, "injected"); err == nil {
+		t.Fatal("writeSummaryFile must refuse to write through a symlink")
+	}
+	content, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "original" {
+		t.Fatalf("symlink target was modified: %q", content)
 	}
 }
 
@@ -443,6 +535,9 @@ func TestTableTextHTMLEscape(t *testing.T) {
 		{input: "a & b", want: "a &amp; b"},
 		{input: "a | b", want: `a \| b`},
 		{input: "line1\nline2", want: "line1 line2"},
+		{input: "`code`", want: "&#96;code&#96;"},
+		{input: "[click me](https://evil.example)", want: "&#91;click me&#93;(https://evil.example)"},
+		{input: "![img](https://evil.example/p.png)", want: "!&#91;img&#93;(https://evil.example/p.png)"},
 	}
 
 	for _, tc := range tests {
@@ -467,6 +562,8 @@ func TestHtmlCodeText(t *testing.T) {
 		{input: "<b>bold</b>", want: "&lt;b&gt;bold&lt;/b&gt;"},
 		{input: "a & b", want: "a &amp; b"},
 		{input: "line1\nline2", want: "line1 line2"},
+		{input: "file`with`ticks.md", want: "file&#96;with&#96;ticks.md"},
+		{input: "[link](https://evil.example)", want: "&#91;link&#93;(https://evil.example)"},
 	}
 
 	for _, tc := range tests {
@@ -476,6 +573,47 @@ func TestHtmlCodeText(t *testing.T) {
 				t.Errorf("htmlCodeText(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRenderMarkdownSummaryNoLinkInjection(t *testing.T) {
+	t.Parallel()
+
+	// File names and lint messages are attacker-influenced (repository content,
+	// e.g. from a fork PR). The rendered summary is posted as a bot PR comment,
+	// so Markdown links and images must not survive rendering.
+	out := output{
+		Status:          "fail",
+		Workspace:       "/work",
+		FilesDiscovered: 1,
+		TotalFindings:   1,
+		Tools: []runner.Result{
+			{
+				Tool:   "markdownlint",
+				Status: "fail",
+				Findings: []runner.Finding{
+					{
+						File:    "[approve me](https://evil.example).md",
+						Line:    1,
+						Rule:    "MD001",
+						Message: "heading `[click](https://evil.example)` ![p](https://evil.example/t.png)",
+					},
+				},
+			},
+		},
+	}
+
+	got := renderMarkdownSummary(out)
+
+	for _, banned := range []string{"[approve me](", "[click](", "![p]("} {
+		if strings.Contains(got, banned) {
+			t.Errorf("summary contains unescaped Markdown link syntax %q:\n%s", banned, got)
+		}
+	}
+	for _, want := range []string{"&#91;approve me&#93;", "&#91;click&#93;", "&#91;p&#93;"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("summary missing escaped form %q:\n%s", want, got)
+		}
 	}
 }
 

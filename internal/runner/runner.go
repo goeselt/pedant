@@ -89,6 +89,15 @@ const DefaultToolTimeout = 10 * time.Minute
 // filtered copy of the process environment with these variables removed.
 func isSensitiveEnvVar(name string) bool {
 	upper := strings.ToUpper(name)
+	// Block GitHub Actions file-command paths: code run by a tool subprocess
+	// (e.g. via a workspace-controlled config) could otherwise append to these
+	// files and inject environment variables, PATH entries, or step outputs
+	// into the surrounding workflow. The file names contain unguessable IDs,
+	// so removing the variables meaningfully raises the bar.
+	switch upper {
+	case "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STATE", "GITHUB_STEP_SUMMARY":
+		return true
+	}
 	// Block well-known CI secret namespaces by prefix.
 	for _, p := range []string{"INPUT_", "ACTIONS_"} {
 		if strings.HasPrefix(upper, p) {
@@ -106,7 +115,8 @@ func isSensitiveEnvVar(name string) bool {
 
 // filterEnv returns a copy of env with likely-secret variables removed.
 // Retained: PATH, HOME, GOPATH, GITHUB_WORKSPACE, and all other operational vars.
-// Removed: *_TOKEN, *_SECRET, *_KEY, *_PASSWORD, *_CREDENTIAL, INPUT_*, ACTIONS_*.
+// Removed: *_TOKEN, *_SECRET, *_KEY, *_PASSWORD, *_CREDENTIAL, INPUT_*, ACTIONS_*,
+// and the GitHub Actions file-command paths (GITHUB_ENV, GITHUB_OUTPUT, ...).
 func filterEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
@@ -243,6 +253,14 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 		allFindings = append(allFindings, findings...)
 	}
 
+	// NoBatch tools scan the workspace themselves (e.g. golangci-lint ./...)
+	// and can report findings in files outside the discovered selection
+	// (--path/--ignore, gitignored, or default-ignored files). Drop those so
+	// every tool honors the same file selection.
+	if def.NoBatch {
+		allFindings = keepAssignedFiles(allFindings, files)
+	}
+
 	if len(allFindings) == 0 {
 		_, _ = fmt.Fprintf(log, "[%s] pass\n", def.Name)
 		return Result{Tool: def.Name, Status: "pass", WorkspaceConfig: wsConfig}
@@ -258,6 +276,23 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 		Findings:        allFindings,
 		WorkspaceConfig: wsConfig,
 	}
+}
+
+// keepAssignedFiles returns the findings whose File is in files.
+// Finding paths and assigned files are both workspace-relative with forward
+// slashes, so exact string comparison is sufficient.
+func keepAssignedFiles(findings []Finding, files []string) []Finding {
+	assigned := make(map[string]bool, len(files))
+	for _, f := range files {
+		assigned[f] = true
+	}
+	kept := findings[:0]
+	for _, f := range findings {
+		if assigned[f.File] {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 // newToolCommand creates a subprocess in its own process group (Setpgid: true)

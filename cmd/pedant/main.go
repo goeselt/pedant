@@ -48,7 +48,7 @@ func main() {
 	fs.BoolVar(&quiet, "quiet", false, "Suppress progress output (JSON only on stdout)")
 	fs.BoolVar(&quiet, "q", false, "Alias for --quiet")
 	fs.BoolVar(&summaryMarkdown, "summary-markdown", false, "Write a Markdown summary to stdout instead of JSON")
-	fs.StringVar(&summaryFile, "summary-file", "", "Write the summary to this file; JSON still emitted on stdout")
+	fs.StringVar(&summaryFile, "summary-file", "", "Write the summary to this file (relative paths are workspace-relative); JSON still emitted on stdout")
 	fs.BoolVar(&summaryGithubStep, "summary-github-step", false, "Append the summary to $GITHUB_STEP_SUMMARY; JSON still emitted on stdout")
 	fs.DurationVar(&toolTimeout, "tool-timeout", runner.DefaultToolTimeout, "Maximum wall-clock duration for one tool, e.g. 30s, 5m, 1h")
 	fs.Var(&pathList, "path", "Restrict scan to this path or file (repeatable)")
@@ -101,7 +101,8 @@ func main() {
 		fatal("%v", err)
 	}
 
-	if err := validateSummaryFile(absWorkspace, summaryFile); err != nil {
+	summaryPath, err := resolveSummaryFile(absWorkspace, summaryFile)
+	if err != nil {
 		fatal("%v", err)
 	}
 
@@ -121,16 +122,16 @@ func main() {
 	if err != nil {
 		fatal("discover: %v", err)
 	}
+	warnings := pathignore.Warnings(pathList, files)
+	files = pathignore.Filter(files)
 	logf("[%s] %d file(s) found\n", appName, len(files))
-
-	for _, warning := range pathignore.Warnings(pathList, files) {
+	for _, warning := range warnings {
 		logf("[%s] warning -- %s\n", appName, warning)
 	}
-	files = pathignore.Filter(files)
 
 	if len(files) == 0 {
 		out := aggregate(absWorkspace, files, nil, nil, 0, 0, "pass")
-		emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
+		emitOutput(out, pretty, summaryMarkdown, summaryPath, summaryGithubStep)
 		os.Exit(0)
 	}
 
@@ -190,7 +191,7 @@ func main() {
 	}
 
 	out := aggregate(absWorkspace, files, results, wsConfigs, toolsRun, toolsSkipped, outStatus)
-	emitOutput(out, pretty, summaryMarkdown, summaryFile, summaryGithubStep)
+	emitOutput(out, pretty, summaryMarkdown, summaryPath, summaryGithubStep)
 
 	// Exit codes: 0 = pass, 1 = findings, 2 = tool execution error.
 	// A tool error takes precedence over findings: a clean lint result could not

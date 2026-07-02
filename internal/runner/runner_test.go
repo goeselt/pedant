@@ -28,6 +28,13 @@ func TestIsSensitiveEnvVar(t *testing.T) {
 		"SIGNING_CREDENTIAL",
 		"github_token",    // case-insensitive
 		"actions_runtime", // prefix match
+		// File-command paths: writing to these files injects env vars, PATH
+		// entries, or outputs into the surrounding workflow.
+		"GITHUB_ENV",
+		"GITHUB_OUTPUT",
+		"GITHUB_PATH",
+		"GITHUB_STATE",
+		"GITHUB_STEP_SUMMARY",
 	}
 	safe := []string{
 		"PATH",
@@ -217,6 +224,66 @@ func TestRestoreFileStat(t *testing.T) {
 	}
 	if info.Mode() != st.mode {
 		t.Errorf("mode after restore: got %v, want %v", info.Mode(), st.mode)
+	}
+}
+
+// -- NoBatch finding filter ------------------------------------------------------------
+
+func TestRunWithTimeoutNoBatchDropsFindingsOutsideAssignedFiles(t *testing.T) {
+	t.Parallel()
+
+	// A NoBatch tool (like golangci-lint) scans the workspace itself and may
+	// report findings in files that were not selected (--path/--ignore,
+	// gitignored). Those findings must be dropped from the result.
+	tool := ToolDef{
+		Name:    "fake-nobatch",
+		Binary:  "/bin/sh",
+		NoBatch: true,
+		Args: func(bool, string, []string) []string {
+			return []string{"-c", "exit 1"}
+		},
+		Parse: func(string, string, int, string) ([]Finding, error) {
+			return []Finding{
+				{File: "pkg/a/a.go", Line: 1, Message: "selected"},
+				{File: "pkg/b/b.go", Line: 2, Message: "outside selection"},
+			}, nil
+		},
+	}
+
+	result := RunWithTimeout(context.Background(), tool, t.TempDir(), false,
+		[]string{"pkg/a/a.go"}, io.Discard, time.Minute)
+
+	if result.Status != "fail" {
+		t.Fatalf("Status = %q, want fail", result.Status)
+	}
+	if len(result.Findings) != 1 {
+		t.Fatalf("Findings = %v, want exactly the finding in the assigned file", result.Findings)
+	}
+	if result.Findings[0].File != "pkg/a/a.go" {
+		t.Errorf("Findings[0].File = %q, want pkg/a/a.go", result.Findings[0].File)
+	}
+}
+
+func TestRunWithTimeoutNoBatchAllFindingsFilteredMeansPass(t *testing.T) {
+	t.Parallel()
+
+	tool := ToolDef{
+		Name:    "fake-nobatch",
+		Binary:  "/bin/sh",
+		NoBatch: true,
+		Args: func(bool, string, []string) []string {
+			return []string{"-c", "exit 1"}
+		},
+		Parse: func(string, string, int, string) ([]Finding, error) {
+			return []Finding{{File: "pkg/b/b.go", Line: 2, Message: "outside selection"}}, nil
+		},
+	}
+
+	result := RunWithTimeout(context.Background(), tool, t.TempDir(), false,
+		[]string{"pkg/a/a.go"}, io.Discard, time.Minute)
+
+	if result.Status != "pass" {
+		t.Fatalf("Status = %q, want pass when all findings are outside the selection", result.Status)
 	}
 }
 

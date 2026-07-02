@@ -17,6 +17,20 @@ input() {
     printf '%s' "$value"
 }
 
+# require_bool <input-name> <value>: fail with a clear message when a boolean
+# input holds anything other than 'true', 'false', or ''. Without this, typos
+# like 'True' or 'yes' would silently behave as 'false'.
+require_bool() {
+    local name="$1" value="$2"
+    case "$value" in
+    true | false | '') ;;
+    *)
+        printf "pedant: input '%s' must be 'true' or 'false', got '%s'\n" "$name" "$value" >&2
+        exit 2
+        ;;
+    esac
+}
+
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     args=()
     fix=$(input FIX)
@@ -27,12 +41,17 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     summary_file=$(input SUMMARY_FILE)
     summary_github_step=$(input SUMMARY_GITHUB_STEP)
 
+    require_bool fix "$fix"
+    require_bool summary-markdown "$summary_markdown"
+    require_bool summary-github-step "$summary_github_step"
+
     if [[ "$fix" == "true" ]]; then
         args+=(--fix)
     fi
 
     if [[ -n "$paths" ]]; then
         while IFS= read -r p; do
+            p="${p%$'\r'}" # tolerate CRLF line endings in multiline inputs
             [[ -z "$p" ]] && continue
             args+=(--path "$p")
         done <<<"$paths"
@@ -40,6 +59,7 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
 
     if [[ -n "$ignore" ]]; then
         while IFS= read -r ig; do
+            ig="${ig%$'\r'}"
             [[ -z "$ig" ]] && continue
             args+=(--ignore "$ig")
         done <<<"$ignore"
