@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: read # Least-privilege default
 
 defaults:
   run:
@@ -22,28 +22,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      packages: write
-      id-token: write
-      attestations: write
+      contents: write # Required to push the release commit and tag.
+      packages: write # Required to push the release image to GHCR.
+      id-token: write # Required to create a SLSA attestation for the release.
+      attestations: write # Required to create a SLSA attestation for the release.
     steps:
-      - id: app
-        name: Generate App Token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_KEY }}
-
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: 0 # intent release needs full history to find the previous release tag
-          token: ${{ steps.app.outputs.token }}
-          persist-credentials: false
+          fetch-depth: 0 # full history needed to find the previous release tag
 
       - id: intent
         name: Intent Release
-        uses: goeselt/intent@2dd369992f542d83bdc27975b078e1242eb07190 # v1.2.2
+        uses: goeselt/intent@0ab5bbaa2e12d54e405da9e9664ac3328f2c274a # v1.2.3
         with:
           initial-version: '1.0.0'
 
@@ -62,11 +53,11 @@ jobs:
 
       - name: Set Up Docker Buildx
         if: steps.intent.outputs.release-needed == 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Log In to GHCR
+      - name: Log In to Registry
         if: steps.intent.outputs.release-needed == 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -75,7 +66,7 @@ jobs:
       - name: Resolve Image Metadata
         id: meta
         if: steps.intent.outputs.release-needed == 'true'
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -87,7 +78,7 @@ jobs:
       - name: Build and Push
         id: build
         if: steps.intent.outputs.release-needed == 'true'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           push: true
@@ -101,11 +92,11 @@ jobs:
         if: steps.intent.outputs.release-needed == 'true'
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
-          subject-name: ghcr.io/goeselt/pedant
+          subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Pin action.yml
+      - name: Pin
         if: steps.intent.outputs.release-needed == 'true'
         env:
           VERSION: ${{ steps.intent.outputs.next-version }}
@@ -126,20 +117,19 @@ jobs:
             action.yml
             tools/node/package.json
             tools/node/package-lock.json
-          message: 'chore(version): release v${{ steps.intent.outputs.next-version }}'
-          github-token: ${{ steps.app.outputs.token }}
-          git-user-name: ${{ vars.RELEASE_SIGNING_USER }}
-          git-user-email: ${{ vars.RELEASE_SIGNING_EMAIL }}
+          message: 'chore: bump ${{ steps.intent.outputs.release-tag }}'
+          github-token: ${{ secrets.CONTENT_WRITE_PAT }}
+          git-user-name: ${{ secrets.RELEASE_SIGNING_USER }}
+          git-user-email: ${{ secrets.RELEASE_SIGNING_EMAIL }}
           signing-key: ${{ secrets.RELEASE_SIGNING_KEY }}
 
-      - name: Ship
+      - name: Release
         if: steps.intent.outputs.release-needed == 'true'
         uses: goeselt/dispatch@177d405019f83bf8728e3a132e2b2565d6eacd47 # v1.3.5
         with:
           release-tag: ${{ steps.intent.outputs.release-tag }}
           major-tag: ${{ steps.intent.outputs.major-tag }}
           minor-tag: ${{ steps.intent.outputs.minor-tag }}
-          github-token: ${{ steps.app.outputs.token }}
-          git-user-name: ${{ vars.RELEASE_SIGNING_USER }}
-          git-user-email: ${{ vars.RELEASE_SIGNING_EMAIL }}
+          git-user-name: ${{ secrets.RELEASE_SIGNING_USER }}
+          git-user-email: ${{ secrets.RELEASE_SIGNING_EMAIL }}
           signing-key: ${{ secrets.RELEASE_SIGNING_KEY }}

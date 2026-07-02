@@ -226,6 +226,10 @@ func TestFilesRejectsPathspecMagic(t *testing.T) {
 		{name: "magic in paths", paths: []string{":(glob)**/*.go"}},
 		{name: "magic in ignore", ignore: []string{":(icase)vendor"}},
 		{name: "bare magic prefix", ignore: []string{":(exclude)src"}},
+		{name: "short exclude magic in paths", paths: []string{":!vendor"}},
+		{name: "short top magic in paths", paths: []string{":/src"}},
+		{name: "short caret magic in ignore", ignore: []string{":^vendor"}},
+		{name: "bare colon in ignore", ignore: []string{":"}},
 	}
 
 	for _, tc := range tests {

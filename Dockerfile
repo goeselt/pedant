@@ -53,8 +53,8 @@ RUN apk add --no-cache nodejs npm \
 # -- Python linter/formatter --
 
 # renovate: datasource=github-releases depName=astral-sh/ruff
-ARG RUFF_VERSION=0.15.16
-ARG RUFF_SHA256=f52d90f8a6b1b3ad7d74301c3c796652e851d8f05b6ba26d139f05f4838cf412
+ARG RUFF_VERSION=0.15.20
+ARG RUFF_SHA256=0715560b2402024b529a4ffd6ea7d3814a090eb255a6216259fb192823be3ad8
 
 RUN curl -fsSL -o /tmp/ruff.tar.gz \
         "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-x86_64-unknown-linux-musl.tar.gz" \
@@ -122,8 +122,8 @@ RUN apk add --no-cache python3 py3-pip \
 # -- EditorConfig checker --
 
 # renovate: datasource=github-releases depName=editorconfig-checker/editorconfig-checker
-ARG EC_VERSION=3.7.0
-ARG EC_SHA256=9a0c3a5170bffa24f9e5f0def53d285777b6c5284a95367f40d399d0b76af552
+ARG EC_VERSION=3.8.0
+ARG EC_SHA256=613bd88f34165a334adcb6b7e92a123c9de0eada65846d31af63613b779ff3be
 
 RUN curl -fsSL -o /tmp/ec.tar.gz \
         "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v${EC_VERSION}/ec-linux-amd64.tar.gz" \
@@ -154,15 +154,16 @@ RUN curl -fsSL -o /tmp/golangci.tar.gz \
 # -- Text normalizer --
 
 # renovate: datasource=github-releases depName=goeselt/plainify
-ARG PLAINIFY_VERSION=1.0.1
-ARG PLAINIFY_SHA256=cd14fd5796784e44e6d08c667f68f6538501d7c748d4cbce18c36134c340f212
+ARG PLAINIFY_VERSION=1.0.3
+ARG PLAINIFY_SHA256=e4380fa3222238f994f741d068be7cf6b88b96c32ff4ba6cecef8913b0f62e51
 
 RUN curl -fsSL -o /tmp/plainify.tar.gz \
         "https://github.com/goeselt/plainify/releases/download/v${PLAINIFY_VERSION}/plainify_linux_amd64.tar.gz" \
     && printf '%s  /tmp/plainify.tar.gz\n' "${PLAINIFY_SHA256}" | sha256sum -c - \
-    && tar -xzf /tmp/plainify.tar.gz -C /usr/local/bin plainify \
+    && tar -xzf /tmp/plainify.tar.gz -C /tmp \
+    && mv /tmp/plainify /usr/local/bin/plainify \
     && chmod 755 /usr/local/bin/plainify \
-    && rm /tmp/plainify.tar.gz \
+    && rm -rf /tmp/* \
     && plainify --version
 
 # -- TOML formatter --

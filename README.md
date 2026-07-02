@@ -20,13 +20,13 @@ Dockerfile, and GitHub Actions in a single container pass. It occupies a differe
 ## Quick Start
 
 ```yaml
-- uses: goeselt/pedant@v1
+- uses: goeselt/pedant@<sha>
 ```
 
 With options:
 
 ```yaml
-- uses: goeselt/pedant@v1
+- uses: goeselt/pedant@<sha>
   with:
     fix: 'true' # apply auto-fixes (default: false -- check only)
     paths: | # restrict scan to these paths (one per line)
@@ -55,7 +55,7 @@ The action always runs all applicable tools. When `fix: 'true'`, the caller is r
 Use outputs to drive downstream steps:
 
 ```yaml
-- uses: goeselt/pedant@v1
+- uses: goeselt/pedant@<sha>
   id: lint
 - if: steps.lint.outputs.status == 'fail'
   run: echo "Lint failed with ${{ steps.lint.outputs.total-findings }} finding(s)"
@@ -140,7 +140,7 @@ project-specific rules.
 | `--pretty`              | Pretty-print JSON output                                                      |
 | `--quiet`, `-q`         | Suppress progress output; JSON only on stdout                                 |
 | `--summary-markdown`    | Write a Markdown summary to stdout instead of JSON                            |
-| `--summary-file <path>` | Write the summary to this file; JSON is still emitted on stdout               |
+| `--summary-file <path>` | Write the summary to this file (workspace-relative); JSON still on stdout     |
 | `--summary-github-step` | Append the summary to `$GITHUB_STEP_SUMMARY`; JSON is still emitted on stdout |
 
 ### File Discovery
