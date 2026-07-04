@@ -78,7 +78,7 @@ jobs:
 
       - name: Publish Self-Check Report
         if: always()
-        uses: goeselt/remark@c2de02a492be4f6f11cd258c86e273a77186c86b # v1.0.5
+        uses: goeselt/remark@3863bca7cfacbc5eb562791ac3a04713346f602c # v1.0.6
         with:
           comment-key: pedant-self-check
           body-file: pedant-self-check.md
