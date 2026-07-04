@@ -57,7 +57,7 @@ jobs:
 
       - name: Log In to Registry
         if: steps.intent.outputs.release-needed == 'true'
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -111,7 +111,7 @@ jobs:
 
       - name: Commit
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/scribe@732387b7af0ebcabc4653253cb5865a31a3cd485 # v1.2.2
+        uses: goeselt/scribe@2d727b24c709116d2951b61d0091ed20bf777b72 # v1.2.3
         with:
           files: |
             action.yml
@@ -125,7 +125,7 @@ jobs:
 
       - name: Release
         if: steps.intent.outputs.release-needed == 'true'
-        uses: goeselt/dispatch@177d405019f83bf8728e3a132e2b2565d6eacd47 # v1.3.5
+        uses: goeselt/dispatch@72482f5dee11ae6ad32d44b9d926c6d1708dea98 # v1.3.6
         with:
           release-tag: ${{ steps.intent.outputs.release-tag }}
           major-tag: ${{ steps.intent.outputs.major-tag }}
