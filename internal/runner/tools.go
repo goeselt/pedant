@@ -11,9 +11,8 @@ import (
 )
 
 // Registry lists all supported tools in execution order.
-// Fixers (CanFix: true) run before checkers (CanFix: false) so that
-// check-only tools such as editorconfig see files in their already-fixed
-// state rather than the pre-fix state.
+// Fixers (CanFix: true) run before checkers (CanFix: false) so that check-only tools such as editorconfig see files in
+// their already-fixed state rather than the pre-fix state.
 //
 // Within fixers, opinionated formatters (prettier) run last so that their
 // check pass always sees files they just wrote.  Rule-based fixers (markdownlint,
@@ -23,7 +22,7 @@ var Registry = []ToolDef{
 	// -- fixers: content transforms and rule-based linters first --
 	plainifyTool,
 	shfmtTool,
-	taplo,
+	taploTool,
 	ruffFormatTool,
 	ruffTool,
 	textlintTool,
@@ -41,7 +40,7 @@ var Registry = []ToolDef{
 	actionlintTool,
 }
 
-// -- Helpers -----------------------------------------------------------------------------------------
+// -- Helpers ----------------------------------------------------------------------------------------------------------
 
 // workspaceConfigRel returns the workspace-relative path of the first candidate
 // that exists under workspace as a regular file (not a symlink), or "" if none
@@ -101,7 +100,7 @@ func jsonOutput(stdout, stderr string) string {
 	return ""
 }
 
-// -- editorconfig (ec) -------------------------------------------------------------------------------
+// -- editorconfig (ec) ------------------------------------------------------------------------------------------------
 
 var editorconfigTool = ToolDef{
 	Name:                "editorconfig",
@@ -159,7 +158,7 @@ func parseEditorconfig(stdout, stderr string, _ int, _ string) ([]Finding, error
 	return findings, nil
 }
 
-// -- prettier ----------------------------------------------------------------------------------------
+// -- prettier ---------------------------------------------------------------------------------------------------------
 
 var prettierConfigCandidates = []string{
 	".prettierrc", ".prettierrc.json", ".prettierrc.yml", ".prettierrc.yaml",
@@ -209,7 +208,7 @@ func parsePrettier(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 	return findings, nil
 }
 
-// -- shfmt -------------------------------------------------------------------------------------------
+// -- shfmt ------------------------------------------------------------------------------------------------------------
 
 var shfmtTool = ToolDef{
 	Name:   "shfmt",
@@ -235,7 +234,7 @@ func parseShfmt(stdout, _ string, _ int, _ string) ([]Finding, error) {
 	return findings, nil
 }
 
-// -- textlint ----------------------------------------------------------------------------------------
+// -- textlint ---------------------------------------------------------------------------------------------------------
 
 var textlintTool = ToolDef{
 	Name:                "textlint",
@@ -293,7 +292,7 @@ func parseTextlintJSON(stdout, stderr string, _ int, workspace string) ([]Findin
 	return findings, nil
 }
 
-// -- markdownlint ------------------------------------------------------------------------------------
+// -- markdownlint -----------------------------------------------------------------------------------------------------
 
 var markdownlintTool = ToolDef{
 	Name:   "markdownlint",
@@ -348,7 +347,7 @@ func parseMarkdownlint(stdout, stderr string, _ int, _ string) ([]Finding, error
 	return findings, nil
 }
 
-// -- eslint ------------------------------------------------------------------------------------------
+// -- eslint -----------------------------------------------------------------------------------------------------------
 
 var eslintConfigCandidates = []string{
 	"eslint.config.js", "eslint.config.mjs", "eslint.config.cjs",
@@ -418,7 +417,7 @@ func parseEslint(stdout, stderr string, _ int, workspace string) ([]Finding, err
 	return findings, nil
 }
 
-// -- hadolint ----------------------------------------------------------------------------------------
+// -- hadolint ---------------------------------------------------------------------------------------------------------
 
 var hadolintTool = ToolDef{
 	Name:                "hadolint",
@@ -477,7 +476,7 @@ func parseHadolint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 	return findings, nil
 }
 
-// -- shellcheck --------------------------------------------------------------------------------------
+// -- shellcheck -------------------------------------------------------------------------------------------------------
 
 var shellcheckTool = ToolDef{
 	Name:                "shellcheck",
@@ -530,7 +529,7 @@ func parseShellcheck(stdout, stderr string, _ int, _ string) ([]Finding, error) 
 	return findings, nil
 }
 
-// -- yamllint ----------------------------------------------------------------------------------------
+// -- yamllint ---------------------------------------------------------------------------------------------------------
 
 var yamllintTool = ToolDef{
 	Name:                "yamllint",
@@ -584,7 +583,7 @@ func parseYamllint(stdout, stderr string, _ int, _ string) ([]Finding, error) {
 	return findings, nil
 }
 
-// -- actionlint --------------------------------------------------------------------------------------
+// -- actionlint -------------------------------------------------------------------------------------------------------
 
 var actionlintTool = ToolDef{
 	Name:                "actionlint",
@@ -640,7 +639,7 @@ func parseActionlint(stdout, stderr string, _ int, _ string) ([]Finding, error) 
 	return findings, nil
 }
 
-// -- golangci-lint -----------------------------------------------------------------------------------
+// -- golangci-lint ----------------------------------------------------------------------------------------------------
 
 var golangciTool = ToolDef{
 	Name:   "golangci-lint",
@@ -715,7 +714,7 @@ func resolveGolangciPath(workspace, path string) string {
 	return relativize(workspace, path)
 }
 
-// -- plainify ----------------------------------------------------------------------------------------
+// -- plainify ---------------------------------------------------------------------------------------------------------
 
 var plainifyTool = ToolDef{
 	Name:   "plainify",
@@ -768,7 +767,7 @@ func parsePlainify(stdout, stderr string, exitCode int, _ string) ([]Finding, er
 	return findings, nil
 }
 
-// -- ruff-format -------------------------------------------------------------------------------------
+// -- ruff-format ------------------------------------------------------------------------------------------------------
 
 var ruffConfigCandidates = []string{
 	"ruff.toml", ".ruff.toml", "pyproject.toml",
@@ -809,7 +808,7 @@ func parseRuffFormat(stdout, stderr string, _ int, _ string) ([]Finding, error) 
 	return findings, nil
 }
 
-// -- stylelint ---------------------------------------------------------------------------------------
+// -- stylelint --------------------------------------------------------------------------------------------------------
 
 var stylelintConfigCandidates = []string{
 	".stylelintrc",
@@ -887,7 +886,7 @@ func parseStylelint(stdout, stderr string, _ int, workspace string) ([]Finding, 
 	return findings, nil
 }
 
-// -- ruff (check) ------------------------------------------------------------------------------------
+// -- ruff (check) -----------------------------------------------------------------------------------------------------
 
 var ruffTool = ToolDef{
 	Name:                "ruff",
@@ -944,9 +943,9 @@ func parseRuff(stdout, stderr string, _ int, workspace string) ([]Finding, error
 	return findings, nil
 }
 
-// -- taplo -------------------------------------------------------------------------------------------
+// -- taplo ------------------------------------------------------------------------------------------------------------
 
-var taplo = ToolDef{
+var taploTool = ToolDef{
 	Name:                "taplo",
 	CanFix:              true,
 	Globs:               []string{"*.toml"},

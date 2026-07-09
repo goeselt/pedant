@@ -24,7 +24,7 @@ func ForTools(files []string) []Assignment {
 	return result
 }
 
-// -- Glob matching ------------------------------------------------------------------
+// -- Glob matching ----------------------------------------------------------------------------------------------------
 
 func matchFiles(files, globs []string) []string {
 	if len(globs) == 0 {

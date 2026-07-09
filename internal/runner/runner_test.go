@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// -- filterEnv / isSensitiveEnvVar ----------------------------------------------------
+// -- filterEnv / isSensitiveEnvVar ------------------------------------------------------------------------------------
 
 func TestIsSensitiveEnvVar(t *testing.T) {
 	t.Parallel()
@@ -121,7 +121,47 @@ func TestFilterEnvEmpty(t *testing.T) {
 	}
 }
 
-// -- limitedBuffer --------------------------------------------------------------------
+func TestToolEnvForcesGoToolchainAuto(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		env  []string
+	}{
+		{"overrides_inherited_local", []string{"PATH=/usr/bin", "GOTOOLCHAIN=local", "HOME=/root"}},
+		{"sets_auto_when_absent", []string{"PATH=/usr/bin", "HOME=/root"}},
+		{"empty_environment", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := toolEnv(tt.env)
+
+			var values []string
+			for _, kv := range got {
+				if name, value, _ := strings.Cut(kv, "="); name == "GOTOOLCHAIN" {
+					values = append(values, value)
+				}
+			}
+			if len(values) != 1 || values[0] != "auto" {
+				t.Errorf("toolEnv GOTOOLCHAIN entries = %v, want exactly [auto]", values)
+			}
+		})
+	}
+}
+
+func TestToolEnvStillFiltersSecrets(t *testing.T) {
+	t.Parallel()
+
+	got := toolEnv([]string{"GITHUB_TOKEN=secret123", "PATH=/usr/bin"})
+	for _, kv := range got {
+		if strings.HasPrefix(kv, "GITHUB_TOKEN=") {
+			t.Errorf("toolEnv kept GITHUB_TOKEN, want it removed")
+		}
+	}
+}
+
+// -- limitedBuffer ----------------------------------------------------------------------------------------------------
 
 func TestLimitedBuffer(t *testing.T) {
 	t.Parallel()
@@ -191,7 +231,7 @@ func TestLimitedBuffer(t *testing.T) {
 	}
 }
 
-// -- file stat preservation ----------------------------------------------------------
+// -- file stat preservation -------------------------------------------------------------------------------------------
 
 func TestRestoreFileStat(t *testing.T) {
 	t.Parallel()
@@ -227,7 +267,7 @@ func TestRestoreFileStat(t *testing.T) {
 	}
 }
 
-// -- NoBatch finding filter ------------------------------------------------------------
+// -- NoBatch finding filter -------------------------------------------------------------------------------------------
 
 func TestRunWithTimeoutNoBatchDropsFindingsOutsideAssignedFiles(t *testing.T) {
 	t.Parallel()
@@ -287,7 +327,7 @@ func TestRunWithTimeoutNoBatchAllFindingsFilteredMeansPass(t *testing.T) {
 	}
 }
 
-// -- tool timeout --------------------------------------------------------------------
+// -- tool timeout ------------------------------------------------------------------------------------------------------------------------
 
 func TestRunWithTimeoutStopsHungTool(t *testing.T) {
 	t.Parallel()

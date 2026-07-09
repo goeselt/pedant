@@ -40,60 +40,57 @@ type ToolDef struct {
 	Binary string // executable name; empty defaults to Name
 	CanFix bool
 	// Globs selects which discovered files this tool receives.
-	// Patterns without '/' match against the basename; patterns with '/' match
-	// against any path suffix with the same segment count. Empty/nil means all files.
+	// Patterns without '/' match against the basename; patterns with '/' match against any path suffix with the same
+	// segment count.
+	// Empty/nil means all files.
 	Globs []string
-	// NoBatch disables automatic file-argument batching for tools that do not
-	// accept an explicit file list (e.g. golangci-lint which uses ./... instead).
+	// NoBatch disables automatic file-argument batching for tools that do not accept an explicit file list
+	// (e.g. golangci-lint which uses ./... instead).
 	NoBatch bool
 	// Skip returns true when the tool should not run for this workspace.
 	// A nil Skip means never skip.
 	Skip   func(workspace string) bool
 	Reason string // optional explanation appended to skip log when Skip returns true
-	// FindWorkspaceConfig returns the workspace-relative path of a
-	// workspace-supplied configuration file if one is present, or "" if the
-	// bundled default will be used. When non-empty, Run logs an info line and
-	// stores the path in Result.WorkspaceConfig.
+	// FindWorkspaceConfig returns the workspace-relative path of a workspace-supplied configuration file if one
+	// is present, or "" if the bundled default will be used.
+	// When non-empty, Run logs an info line and stores the path in Result.WorkspaceConfig.
 	FindWorkspaceConfig func(workspace string) string
 	Args                func(fix bool, workspace string, files []string) []string
 	Parse               func(stdout, stderr string, exitCode int, workspace string) ([]Finding, error)
 }
 
-// -- Constants ------------------------------------------------------------------------
+// -- Constants --------------------------------------------------------------------------------------------------------
 
 // maxFileArgBytes is the maximum total byte-length of file-path arguments per tool invocation.
 // Kept well below Linux ARG_MAX (~2 MB) to leave headroom for the binary path, flags, and environment variables.
 const maxFileArgBytes = 200 * 1024
 
 // maxOutputBytes caps the in-memory buffer used to collect tool stdout/stderr.
-// Output beyond this limit is silently discarded; the resulting parse error
-// surfaces as a tool error result rather than an OOM crash.
+// Output beyond this limit is silently discarded; the resulting parse error surfaces as a tool error result rather
+// than an OOM crash.
 const maxOutputBytes = 50 * 1024 * 1024 // 50 MB
 
 // maxErrorLen caps the length of error messages stored in Result.Error.
-// Keeps the JSON output and Markdown summary bounded when a tool writes large
-// diagnostic text to stderr (e.g. after reading a symlinked file as config).
+// Keeps the JSON output and Markdown summary bounded when a tool writes large diagnostic text to stderr
+// (e.g. after reading a symlinked file as config).
 const maxErrorLen = 4000
 
-// DefaultToolTimeout is the maximum wall-clock duration allowed for a single tool
-// (across all its batches). Tools that exceed this limit are killed by the
-// OS and reported as errors, preventing a deadlocked or pathologically slow
-// linter from stalling the pipeline indefinitely.
+// DefaultToolTimeout is the maximum wall-clock duration allowed for a single tool (across all its batches).
+// Tools that exceed this limit are killed by the OS and reported as errors, preventing a deadlocked or pathologically
+// slow linter from stalling the pipeline indefinitely.
 const DefaultToolTimeout = 10 * time.Minute
 
-// -- Environment filtering ------------------------------------------------------------
+// -- Environment filtering --------------------------------------------------------------------------------------------
 
-// isSensitiveEnvVar reports whether an environment variable name matches a
-// pattern associated with secrets. Tool subprocesses (which may load
-// workspace-controlled config files that execute arbitrary code) receive a
-// filtered copy of the process environment with these variables removed.
+// isSensitiveEnvVar reports whether an environment variable name matches a pattern associated with secrets.
+// Tool subprocesses (which may load workspace-controlled config files that execute arbitrary code) receive a filtered
+// copy of the process environment with these variables removed.
 func isSensitiveEnvVar(name string) bool {
 	upper := strings.ToUpper(name)
-	// Block GitHub Actions file-command paths: code run by a tool subprocess
-	// (e.g. via a workspace-controlled config) could otherwise append to these
-	// files and inject environment variables, PATH entries, or step outputs
-	// into the surrounding workflow. The file names contain unguessable IDs,
-	// so removing the variables meaningfully raises the bar.
+	// Block GitHub Actions file-command paths: code run by a tool subprocess (e.g. via a workspace-controlled config)
+	// could otherwise append to these files and inject environment variables, PATH entries,
+	// or step outputs into the surrounding workflow.
+	// The file names contain unguessable IDs, so removing the variables meaningfully raises the bar.
 	switch upper {
 	case "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STATE", "GITHUB_STEP_SUMMARY":
 		return true
@@ -128,11 +125,29 @@ func filterEnv(env []string) []string {
 	return out
 }
 
-// -- Output buffering -----------------------------------------------------------------
+// toolEnv returns the sanitized environment for tool subprocesses: secrets are removed (filterEnv) and GOTOOLCHAIN is
+// forced to "auto".
+// CI runners forward the job environment into container actions -- actions/setup-go exports GOTOOLCHAIN=local,
+// pinning Go to a host toolchain that does not exist inside the image.
+// That would make golangci-lint fail on any workspace whose go.mod requires a newer Go than the image bundles;
+// "auto" lets the bundled Go download the required toolchain instead.
+func toolEnv(env []string) []string {
+	filtered := filterEnv(env)
+	kept := filtered[:0]
+	for _, kv := range filtered {
+		if name, _, _ := strings.Cut(kv, "="); name == "GOTOOLCHAIN" {
+			continue
+		}
+		kept = append(kept, kv)
+	}
+	return append(kept, "GOTOOLCHAIN=auto")
+}
 
-// limitedBuffer is a bytes.Buffer that stops accepting writes once limit bytes
-// have been accumulated. Excess data is silently discarded. limit == 0 means
-// no limit (behaves identically to bytes.Buffer).
+// -- Output buffering -------------------------------------------------------------------------------------------------
+
+// limitedBuffer is a bytes.Buffer that stops accepting writes once limit bytes have been accumulated.
+// Excess data is silently discarded.
+// limit == 0 means no limit (behaves identically to bytes.Buffer).
 type limitedBuffer struct {
 	bytes.Buffer
 	limit int
@@ -153,7 +168,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	return full, err // always report full len; a short-write would stall the subprocess
 }
 
-// -- Core execution -------------------------------------------------------------------
+// -- Core execution ---------------------------------------------------------------------------------------------------
 
 // splitBatches partitions files into slices whose total path length stays within maxFileArgBytes.
 // A single-element result means no splitting was needed.
@@ -223,10 +238,10 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 		batches = splitBatches(files)
 	}
 
-	// Compute a filtered environment once per Run call; all batches share it.
-	// Secrets (tokens, keys, passwords, action inputs) are removed so that
-	// workspace-controlled config files cannot read them.
-	env := filterEnv(os.Environ())
+	// Compute a sanitized environment once per Run call; all batches share it.
+	// Secrets (tokens, keys, passwords, action inputs) are removed so that workspace-controlled config files
+	// cannot read them.
+	env := toolEnv(os.Environ())
 
 	toolCtx := ctx
 	cancel := func() {}
@@ -253,10 +268,9 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 		allFindings = append(allFindings, findings...)
 	}
 
-	// NoBatch tools scan the workspace themselves (e.g. golangci-lint ./...)
-	// and can report findings in files outside the discovered selection
-	// (--path/--ignore, gitignored, or default-ignored files). Drop those so
-	// every tool honors the same file selection.
+	// NoBatch tools scan the workspace themselves (e.g. golangci-lint ./...) and can report findings in files outside
+	// the discovered selection (--path/--ignore, gitignored, or default-ignored files).
+	// Drop those so every tool honors the same file selection.
 	if def.NoBatch {
 		allFindings = keepAssignedFiles(allFindings, files)
 	}
@@ -279,8 +293,8 @@ func RunWithTimeout(ctx context.Context, def ToolDef, workspace string, fix bool
 }
 
 // keepAssignedFiles returns the findings whose File is in files.
-// Finding paths and assigned files are both workspace-relative with forward
-// slashes, so exact string comparison is sufficient.
+// Finding paths and assigned files are both workspace-relative with forward slashes,
+// so exact string comparison issufficient.
 func keepAssignedFiles(findings []Finding, files []string) []Finding {
 	assigned := make(map[string]bool, len(files))
 	for _, f := range files {
@@ -295,14 +309,13 @@ func keepAssignedFiles(findings []Finding, files []string) []Finding {
 	return kept
 }
 
-// newToolCommand creates a subprocess in its own process group (Setpgid: true)
-// and replaces exec.Cmd's default Cancel with a SIGKILL to the entire process
-// group (-pgid). This matters because several linters (golangci-lint, Node.js
-// tools) spawn child processes of their own: killing only the parent would
-// leave those children running as orphans, leaking resources and potentially
-// keeping the workspace lock held after the timeout fires.
-// Passing -pgid to syscall.Kill is the idiomatic Linux approach for this; the
-// container is always Linux so there is no portability concern.
+// newToolCommand creates a subprocess in its own process group (Setpgid: true) and replaces exec.Cmd's default Cancel
+// with a SIGKILL to the entire process group (-pgid).
+// This matters because several linters (golangci-lint, Node.js tools) spawn child processes of their own:
+// killing only the parent would leave those children running as orphans, leaking resources and potentially keeping
+// the workspace lock held after the timeout fires.
+// Passing -pgid to syscall.Kill is the idiomatic Linux approach for this;
+// the container is always Linux so there is no portability concern.
 func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -318,12 +331,11 @@ func newToolCommand(ctx context.Context, binary string, args ...string) *exec.Cm
 	return cmd
 }
 
-// runFixBatch executes the fix pass for one batch and restores file ownership
-// afterwards.  Errors from the tool itself are logged as warnings and do not
-// abort the subsequent check pass.
+// runFixBatch executes the fix pass for one batch and restores file ownership afterwards.
+// Errors from the tool itself are logged as warnings and do not abort the subsequent check pass.
 func runFixBatch(ctx context.Context, def ToolDef, binary, workspace string, batch []string, log io.Writer, env []string) {
-	// Capture ownership before fix: some tools (e.g. shfmt) write via a
-	// temp file + rename, creating a new root-owned file inside the container.
+	// Capture ownership before fix: some tools (e.g. shfmt) write via a temp file + rename, creating a new root-owned
+	// file inside the container.
 	savedStats := captureFileStat(workspace, batch)
 
 	fixCmd := newToolCommand(ctx, binary, def.Args(true, workspace, batch)...)
@@ -339,8 +351,8 @@ func runFixBatch(ctx context.Context, def ToolDef, binary, workspace string, bat
 				// Non-exit error (e.g. binary not found): log because the fixer could not run at all.
 				_, _ = fmt.Fprintf(log, "[%s] warning -- fix pass: %v\n", def.Name, err)
 			}
-			// ExitError: many fixers exit non-zero when they encounter issues even
-			// in fix mode (e.g. markdownlint reports fixed issues on stderr and exits 1).
+			// ExitError: many fixers exit non-zero when they encounter issues even in fix mode
+			// (e.g. markdownlint reports fixed issues on stderr and exits 1).
 			// Suppress the stderr log here; the check pass reports what actually remains.
 		}
 	}
@@ -349,8 +361,8 @@ func runFixBatch(ctx context.Context, def ToolDef, binary, workspace string, bat
 }
 
 // RunFixWithTimeout runs only the fix pass for def (no check pass, no findings).
-// Called during the first phase of a two-phase --fix run so that every fixer
-// has modified files before any tool's check pass reports findings.
+// Called during the first phase of a two-phase --fix run so that every fixer has modified files before any tool's check
+// pass reports findings.
 func RunFixWithTimeout(ctx context.Context, def ToolDef, workspace string, files []string, log io.Writer, timeout time.Duration) {
 	if !def.CanFix {
 		return
@@ -369,7 +381,7 @@ func RunFixWithTimeout(ctx context.Context, def ToolDef, workspace string, files
 		batches = splitBatches(files)
 	}
 
-	env := filterEnv(os.Environ())
+	env := toolEnv(os.Environ())
 
 	toolCtx := ctx
 	cancel := func() {}
@@ -390,8 +402,8 @@ func RunFixWithTimeout(ctx context.Context, def ToolDef, workspace string, files
 
 // invokeBatch runs the check pass for a single batch of files.
 // When fix is true and def.CanFix, it also runs a fix pass first.
-// In the two-phase --fix flow this is called with fix=false so only the check
-// pass executes (the fix pass has already been done by RunFixWithTimeout).
+// In the two-phase --fix flow this is called with fix=false so only the check pass executes
+// (the fix pass has already been done by RunFixWithTimeout).
 // Returns (findings, errMsg); errMsg != "" is a hard error that aborts batching.
 func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix bool, files []string, log io.Writer, env []string) ([]Finding, string) {
 	if fix && def.CanFix {
@@ -448,16 +460,16 @@ func invokeBatch(ctx context.Context, def ToolDef, binary, workspace string, fix
 	return findings, ""
 }
 
-// fileStat holds the ownership and permission bits of a file as captured
-// before a fix pass, so they can be restored afterwards.
+// fileStat holds the ownership and permission bits of a file as captured before a fix pass,
+// so they can be restored afterwards.
 type fileStat struct {
 	uid  uint32
 	gid  uint32
 	mode os.FileMode
 }
 
-// captureFileStat records the UID, GID, and mode of each file in files
-// (resolved relative to workspace) before a fix pass runs.
+// captureFileStat records the UID, GID, and mode of each file in files (resolved relative to workspace)
+// before a fix pass runs.
 func captureFileStat(workspace string, files []string) map[string]fileStat {
 	stats := make(map[string]fileStat, len(files))
 	for _, f := range files {
@@ -474,9 +486,8 @@ func captureFileStat(workspace string, files []string) map[string]fileStat {
 	return stats
 }
 
-// restoreFileStat applies the ownership and mode recorded in saved to each
-// file that was modified by a fix pass.  Errors are silently ignored: a
-// failed restore is better than aborting the check pass entirely.
+// restoreFileStat applies the ownership and mode recorded in saved to each file that was modified by a fix pass.
+// Errors are silently ignored: a failed restore is better than aborting the check pass entirely.
 func restoreFileStat(workspace string, files []string, saved map[string]fileStat) {
 	for _, f := range files {
 		orig, ok := saved[f]

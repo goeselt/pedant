@@ -140,10 +140,12 @@ func main() {
 	ctx := context.Background()
 	assignments := runner.ForTools(files)
 
-	// Fix phase: run every fixer silently so that all files are in their final
-	// fixed state before any tool's check pass reports findings.
-	// Without this, a checker that runs between two fixers would see a
-	// mid-fix snapshot and report transient findings that vanish on the next run.
+	// Fix phase: run every fixer so that all files are in their final fixed
+	// state before any tool's check pass reports findings. Without this, a
+	// checker that runs between two fixers would see a mid-fix snapshot and
+	// report transient findings that vanish on the next run. Each fixer logs a
+	// "fixing N file(s)" progress line here; only its findings and stderr are
+	// suppressed, so a tool that both fixes and checks appears twice in the log.
 	if fix {
 		for _, a := range assignments {
 			runner.RunFixWithTimeout(ctx, a.Def, absWorkspace, a.Files, log, toolTimeout)

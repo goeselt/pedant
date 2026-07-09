@@ -10,10 +10,9 @@ import (
 	"strings"
 )
 
-// rejectPathspecMagic returns an error if entry starts with ":", the git
-// pathspec magic signature. Both the long form ":(...)" and the short forms
-// (":!", ":^", ":/") are rejected because they would inject pathspec magic
-// beyond the :(exclude) prefix that Files itself adds.
+// rejectPathspecMagic returns an error if entry starts with ":", the git pathspec magic signature.
+// Both the long form ":(...)" and the short forms (":!", ":^", ":/") are rejected because they would inject pathspec
+// magic beyond the :(exclude) prefix that Files itself adds.
 func rejectPathspecMagic(kind, entry string) error {
 	if strings.HasPrefix(entry, ":") {
 		return fmt.Errorf("%s %q: pathspec magic is not allowed", kind, entry)
@@ -25,8 +24,8 @@ func rejectPathspecMagic(kind, entry string) error {
 // It delegates to git ls-files so that .gitignore rules are respected hierarchically.
 // If paths is non-empty, the scan is restricted to those subdirectories or files.
 // If ignore is non-empty, those paths are excluded using git's :(exclude) pathspec magic.
-// Values starting with ":" are rejected because they would inject additional pathspec
-// magic and could cause unexpected file selection or exclusion.
+// Values starting with ":" are rejected because they would inject additional pathspec magic and could cause unexpected
+// file selection or exclusion.
 func Files(workspace string, paths, ignore []string) ([]string, error) {
 	for _, p := range paths {
 		if err := rejectPathspecMagic("path", p); err != nil {
@@ -71,9 +70,8 @@ func Files(workspace string, paths, ignore []string) ([]string, error) {
 			continue
 		}
 		// Skip files that are absent or are symlinks.
-		// Symlinks can point outside the workspace and would cause linters to
-		// read unintended files (e.g. /etc/passwd) whose content might surface
-		// in tool output or the step summary.
+		// Symlinks can point outside the workspace and would cause linters to read unintended files (e.g. /etc/passwd)
+		// whose content might surface in tool output or the step summary.
 		info, err := os.Lstat(filepath.Join(workspace, l))
 		if err != nil || info.Mode()&os.ModeSymlink != 0 {
 			continue
