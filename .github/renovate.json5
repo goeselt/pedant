@@ -1,0 +1,54 @@
+{
+  // Renovate configuration.
+  //
+  // Dependabot (see dependabot.yml) owns github-actions, gomod, and npm.
+  // Renovate is scoped to Docker only, so the two bots never open duplicate PRs:
+  //   - the `dockerfile` manager updates the base-image tags and @sha256 digests
+  //     on the two FROM lines;
+  //   - the `custom.regex` manager below updates the pinned tool versions marked
+  //     with `# renovate:` comments in the Dockerfile.
+  //
+  // Enable by installing the Renovate GitHub App on this repository (no
+  // self-hosted runner required: the tool downloads are no longer checksum-pinned,
+  // so a version-only bump builds cleanly).
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  enabledManagers: ['dockerfile', 'custom.regex'],
+
+  // Commit as `fix(deps): ...` so goeselt/intent cuts a patch release for every
+  // bump. Renovate's default type `chore:` maps to bump-level `none` in intent
+  // and would merge without ever releasing a new image.
+  semanticCommits: 'enabled',
+  semanticCommitType: 'fix',
+  semanticCommitScope: 'deps',
+
+  // Merge automatically once CI is green. platformAutomerge uses GitHub's native
+  // auto-merge, so a PR merges the moment required checks pass; it needs
+  // "Allow auto-merge" enabled in repo settings plus a branch-protection rule
+  // requiring the CI check. Major updates are held for manual review (matching
+  // dependabot-merge.yml): a major tool bump can change lint behavior even when
+  // the image still builds. Remove the packageRule below to auto-merge those too.
+  automerge: true,
+  platformAutomerge: true,
+  packageRules: [
+    {
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+  ],
+
+  customManagers: [
+    {
+      customType: 'regex',
+      managerFilePatterns: ['/(^|/)Dockerfile$/'],
+      // Match a `# renovate:` annotation line immediately followed by its
+      // `ARG <TOOL>_VERSION=<value>` line. The tool tags are semver; Renovate's
+      // semver versioning normalizes the optional leading `v` (shellcheck,
+      // hadolint, actionlint, ec, plainify use `v`, ruff and taplo do not).
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+ARG \\w+_VERSION=(?<currentValue>\\S+)',
+      ],
+      versioningTemplate: 'semver',
+    },
+  ],
+}

@@ -54,11 +54,9 @@ RUN apk add --no-cache nodejs npm \
 
 # renovate: datasource=github-releases depName=astral-sh/ruff
 ARG RUFF_VERSION=0.15.20
-ARG RUFF_SHA256=0715560b2402024b529a4ffd6ea7d3814a090eb255a6216259fb192823be3ad8
 
 RUN curl -fsSL -o /tmp/ruff.tar.gz \
         "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-x86_64-unknown-linux-musl.tar.gz" \
-    && printf '%s  /tmp/ruff.tar.gz\n' "${RUFF_SHA256}" | sha256sum -c - \
     && tar -xzf /tmp/ruff.tar.gz --strip-components=1 -C /usr/local/bin \
     && chmod 755 /usr/local/bin/ruff \
     && rm /tmp/ruff.tar.gz \
@@ -73,11 +71,9 @@ RUN apk add --no-cache shfmt \
 # shellcheck (no Alpine package with current version; install from upstream release)
 # renovate: datasource=github-releases depName=koalaman/shellcheck
 ARG SHELLCHECK_VERSION=0.11.0
-ARG SHELLCHECK_SHA256=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
 
 RUN curl -fsSL -o /tmp/shellcheck.tar.xz \
         "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
-    && printf '%s  /tmp/shellcheck.tar.xz\n' "${SHELLCHECK_SHA256}" | sha256sum -c - \
     && tar -xJ --strip-components=1 -C /usr/local/bin -f /tmp/shellcheck.tar.xz "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" \
     && chmod 755 /usr/local/bin/shellcheck \
     && rm /tmp/shellcheck.tar.xz \
@@ -87,12 +83,10 @@ RUN curl -fsSL -o /tmp/shellcheck.tar.xz \
 
 # renovate: datasource=github-releases depName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.14.0
-ARG HADOLINT_SHA256=6bf226944684f56c84dd014e8b979d27425c0148f61b3bd99bcc6f39e9dc5a47
 
 RUN curl -fsSL \
         "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64" \
         -o /usr/local/bin/hadolint \
-    && printf '%s  /usr/local/bin/hadolint\n' "${HADOLINT_SHA256}" | sha256sum -c - \
     && chmod 755 /usr/local/bin/hadolint \
     && hadolint --version
 
@@ -100,11 +94,9 @@ RUN curl -fsSL \
 
 # renovate: datasource=github-releases depName=rhysd/actionlint
 ARG ACTIONLINT_VERSION=1.7.12
-ARG ACTIONLINT_SHA256=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
 
 RUN curl -fsSL -o /tmp/actionlint.tar.gz \
         "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
-    && printf '%s  /tmp/actionlint.tar.gz\n' "${ACTIONLINT_SHA256}" | sha256sum -c - \
     && tar -xzf /tmp/actionlint.tar.gz -C /usr/local/bin actionlint \
     && chmod 755 /usr/local/bin/actionlint \
     && rm /tmp/actionlint.tar.gz \
@@ -123,11 +115,9 @@ RUN apk add --no-cache python3 py3-pip \
 
 # renovate: datasource=github-releases depName=editorconfig-checker/editorconfig-checker
 ARG EC_VERSION=3.8.0
-ARG EC_SHA256=613bd88f34165a334adcb6b7e92a123c9de0eada65846d31af63613b779ff3be
 
 RUN curl -fsSL -o /tmp/ec.tar.gz \
         "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v${EC_VERSION}/ec-linux-amd64.tar.gz" \
-    && printf '%s  /tmp/ec.tar.gz\n' "${EC_SHA256}" | sha256sum -c - \
     && tar -xz -C /tmp -f /tmp/ec.tar.gz \
     && mv /tmp/bin/ec-linux-amd64 /usr/local/bin/ec \
     && chmod 755 /usr/local/bin/ec \
@@ -138,11 +128,9 @@ RUN curl -fsSL -o /tmp/ec.tar.gz \
 
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 ARG GOLANGCI_VERSION=2.12.2
-ARG GOLANGCI_SHA256=8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553
 
 RUN curl -fsSL -o /tmp/golangci.tar.gz \
         "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_VERSION}/golangci-lint-${GOLANGCI_VERSION}-linux-amd64.tar.gz" \
-    && printf '%s  /tmp/golangci.tar.gz\n' "${GOLANGCI_SHA256}" | sha256sum -c - \
     && tar -xzf /tmp/golangci.tar.gz \
         -C /usr/local/bin \
         --strip-components=1 \
@@ -155,11 +143,9 @@ RUN curl -fsSL -o /tmp/golangci.tar.gz \
 
 # renovate: datasource=github-releases depName=goeselt/plainify
 ARG PLAINIFY_VERSION=1.0.3
-ARG PLAINIFY_SHA256=e4380fa3222238f994f741d068be7cf6b88b96c32ff4ba6cecef8913b0f62e51
 
 RUN curl -fsSL -o /tmp/plainify.tar.gz \
         "https://github.com/goeselt/plainify/releases/download/v${PLAINIFY_VERSION}/plainify_linux_amd64.tar.gz" \
-    && printf '%s  /tmp/plainify.tar.gz\n' "${PLAINIFY_SHA256}" | sha256sum -c - \
     && tar -xzf /tmp/plainify.tar.gz -C /tmp \
     && mv /tmp/plainify /usr/local/bin/plainify \
     && chmod 755 /usr/local/bin/plainify \
@@ -170,11 +156,9 @@ RUN curl -fsSL -o /tmp/plainify.tar.gz \
 
 # renovate: datasource=github-releases depName=tamasfe/taplo
 ARG TAPLO_VERSION=0.10.0
-ARG TAPLO_SHA256=8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156
 
 RUN curl -fsSL -o /tmp/taplo.gz \
         "https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz" \
-    && printf '%s  /tmp/taplo.gz\n' "${TAPLO_SHA256}" | sha256sum -c - \
     && gunzip -c /tmp/taplo.gz > /usr/local/bin/taplo \
     && chmod 755 /usr/local/bin/taplo \
     && rm /tmp/taplo.gz \
