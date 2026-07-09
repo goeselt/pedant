@@ -3,6 +3,9 @@
   "version": "1.4.1",
   "private": true,
   "description": "Locked Node.js toolchain dependencies for the pedant Docker image.",
+  "scripts": {
+    "validate:renovate": "npx --yes --package renovate renovate-config-validator ../../.github/renovate.json5"
+  },
   "dependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.6.0",

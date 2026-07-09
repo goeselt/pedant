@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// DefaultDirs are generated, dependency, cache, or temporary directories that
-// pedant excludes from all bundled tool runs.
+// DefaultDirs are generated, dependency, cache, or temporary directories that pedant excludes from all bundled tool
+// runs.
 var DefaultDirs = []string{
 	".cache",
 	".git",
@@ -37,8 +37,8 @@ func Filter(files []string) []string {
 	return out
 }
 
-// Warnings reports explicit --path selections that resolve only to files under
-// DefaultDirs, making the implicit skip visible without turning it into an error.
+// Warnings reports explicit --path selections that resolve only to files under DefaultDirs, making the implicit skip
+// visible without turning it into an error.
 func Warnings(selectedPaths, files []string) []string {
 	if len(selectedPaths) == 0 || len(files) == 0 {
 		return nil
