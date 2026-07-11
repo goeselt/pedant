@@ -53,7 +53,7 @@ RUN apk add --no-cache nodejs npm \
 # -- Python linter/formatter --
 
 # renovate: datasource=github-releases depName=astral-sh/ruff
-ARG RUFF_VERSION=0.15.20
+ARG RUFF_VERSION=0.15.21
 
 RUN curl -fsSL -o /tmp/ruff.tar.gz \
         "https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-x86_64-unknown-linux-musl.tar.gz" \
@@ -142,7 +142,7 @@ RUN curl -fsSL -o /tmp/golangci.tar.gz \
 # -- Text normalizer --
 
 # renovate: datasource=github-releases depName=goeselt/plainify
-ARG PLAINIFY_VERSION=1.0.3
+ARG PLAINIFY_VERSION=1.1.0
 
 RUN curl -fsSL -o /tmp/plainify.tar.gz \
         "https://github.com/goeselt/plainify/releases/download/v${PLAINIFY_VERSION}/plainify_linux_amd64.tar.gz" \
